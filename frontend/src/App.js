@@ -1,23 +1,36 @@
-import logo from './logo.svg';
 import './App.css';
+import React, { useEffect, useRef, useState } from 'react';
 
 function App() {
+  const [message, setMessage] = useState('');
+  const videoRef = useRef(null);
+
+  useEffect(() => {
+    // Fetching message from backend API
+    fetch('http://localhost:5000/api/message')
+      .then(response => response.json())
+      .then(data => setMessage(data.message));
+    
+    // Requesting access to the webcam
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then((stream) => {
+        // Setting the video element's source to the webcam stream
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      })
+      .catch((error) => {
+        console.error("Error accessing webcam:", error);
+      });
+  }, []);
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+    <div>
+      <h1>156 Breakout Video Chat App</h1>
+      <p>{message}</p>
+      
+      {/* Video element for displaying webcam feed */}
+      <video ref={videoRef} autoPlay playsInline style={{ width: "500px", height: "auto", border: "2px solid black" }} />
     </div>
   );
 }
