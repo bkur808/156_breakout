@@ -1,5 +1,8 @@
 import './App.css';
 import React, { useEffect, useRef, useState } from 'react';
+import { io } from 'socket.io-client';
+
+const socket = io('http://localhost:5000'); // Connect to the signaling server
 
 function App() {
   const [message, setMessage] = useState('');
@@ -7,40 +10,52 @@ function App() {
   const [roomId, setRoomId] = useState('');
   const videoRef = useRef(null);
 
-  // Fetch message and video setup in the classroom view
+  // Function to fetch message and set up video when in the classroom
   useEffect(() => {
     if (inClassroom) {
-      // Fetching message from backend API
+      // Fetch message from backend API
       fetch('http://localhost:5000/api/message')
         .then(response => response.json())
         .then(data => setMessage(data.message));
 
-      // Requesting access to the webcam
+      // Request access to the webcam
       navigator.mediaDevices.getUserMedia({ video: true })
         .then((stream) => {
-          // Setting the video element's source to the webcam stream
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
           }
-        })
-        .catch((error) => {
-          console.error("Error accessing webcam:", error);
-        });
-    }
-  }, [inClassroom]);
 
-  // Handle room ID input
+          // Notify the server to join the specified room
+          socket.emit('join-room', roomId);
+
+          // Listen for events when other users join the room
+          socket.on('user-joined', (userId) => {
+            console.log(`User joined room: ${userId}`);
+            // Additional logic for establishing connections with the new user can go here
+          });
+
+          // Listen for WebRTC signaling messages
+          socket.on('signal', ({ signalData, senderId }) => {
+            console.log('Received signal from:', senderId, signalData);
+            // Handle WebRTC signaling data here (e.g., create offers/answers, add ICE candidates)
+          });
+        })
+        .catch((error) => console.error("Error accessing webcam:", error));
+    }
+  }, [inClassroom, roomId]);
+
+  // Handle Room ID input
   const handleRoomIdChange = (event) => {
     setRoomId(event.target.value);
   };
 
-  // Generate a random room ID
+  // Generate a random Room ID
   const generateRandomId = () => {
-    const randomId = Math.random().toString(36).substr(2, 9); // Generates a random alphanumeric string
+    const randomId = Math.random().toString(36).substr(2, 9);
     setRoomId(randomId);
   };
 
-  // Enter the classroom with the current room ID
+  // Enter the classroom with the current Room ID
   const enterClassroom = () => {
     if (roomId) {
       setInClassroom(true);
