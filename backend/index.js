@@ -2,17 +2,21 @@ const express = require('express');
 const cors = require('cors');
 const http = require('http');
 const { Server } = require('socket.io');
+const path = require('path');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Serve static files from the React app
+app.use(express.static(path.join(__dirname, '../frontend/build')));
+
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: 'http://localhost:3000',
+        origin: 'http://localhost:3000', // Adjust if deploying
         methods: ['GET', 'POST'],
-    }
+    },
 });
 
 // In-memory store for rooms with passcode, expiration, and participants
@@ -92,6 +96,11 @@ app.get('/api/room-details', (req, res) => {
         instructorId: roomData.instructorId,
         isProtected: roomData.isProtected,
     });
+});
+
+// Serve React app for any other route
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
 });
 
 // Socket.io connection
@@ -199,7 +208,6 @@ io.on('connection', (socket) => {
         socket.to([...socket.rooms]).emit('user-disconnected', socket.id);
     });
 });
-
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
