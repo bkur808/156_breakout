@@ -9,7 +9,7 @@ app.use(cors());
 app.use(express.json());
 
 // Serve static files from the React app
-app.use(express.static(path.join(__dirname, '../frontend/build')));
+app.use(express.static(path.join(__dirname, 'frontend/build')));
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -100,7 +100,7 @@ app.get('/api/room-details', (req, res) => {
 
 // Serve React app for any other route
 app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
+    res.sendFile(path.join(__dirname, 'frontend/build', 'index.html'));
 });
 
 // Socket.io connection
