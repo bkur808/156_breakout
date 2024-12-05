@@ -80,29 +80,29 @@ io.on('connection', (socket) => {
 
     socket.on('join-room', ({ roomId, passcode }) => {
         const roomData = rooms.get(roomId);
-
+    
         if (!roomData) {
             socket.emit('error', 'Room does not exist.');
             return;
         }
-
+    
         if (roomData.isProtected && roomData.passcode !== passcode) {
             socket.emit('error', 'Incorrect passcode.');
             return;
         }
-
+    
         const isInstructor = roomData.instructorId === socket.id;
-
+    
         // Notify the user of their role
         socket.emit('role-assigned', { role: isInstructor ? 'instructor' : 'student' });
-
+    
         if (!isInstructor) {
             // Assign the student to a free seat
             const freeSeatIndex = roomData.participants.findIndex((seat) => seat === null);
             if (freeSeatIndex !== -1) {
                 roomData.participants[freeSeatIndex] = socket.id;
                 rooms.set(roomId, roomData);
-
+    
                 console.log(`Student ${socket.id} assigned to seat ${freeSeatIndex} in room ${roomId}`);
             } else {
                 console.warn(`No free seats available in room ${roomId}`);
@@ -112,16 +112,17 @@ io.on('connection', (socket) => {
         } else {
             console.log(`Instructor ${socket.id} joined room ${roomId}`);
         }
-
+    
         // Join the Socket.IO room
         socket.join(roomId);
-
+    
         // Notify other users in the room about the new connection
         socket.to(roomId).emit('user-connected', socket.id);
-
-        // Notify the user about current seat data
-        socket.emit('seat-updated', roomData.participants);
+    
+        // Send updated seat data to all users in the room
+        io.to(roomId).emit('seat-updated', roomData.participants);
     });
+    
 
     socket.on('signal', ({ roomId, userId, offer, answer, candidate }) => {
         io.to(userId).emit('signal', { userId: socket.id, offer, answer, candidate });
