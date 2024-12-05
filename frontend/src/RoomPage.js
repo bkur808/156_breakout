@@ -11,9 +11,12 @@ function RoomPage() {
     const peerConnections = useRef({});
     const localStreamRef = useRef(null);
 
+    // Determine the base URL dynamically
+    const baseUrl = process.env.REACT_APP_BASE_URL || window.location.origin;
+
     useEffect(() => {
         // Fetch room details and initialize local video stream
-        fetch(`http://localhost:5000/api/room-details?roomId=${roomId}`)
+        fetch(`${baseUrl}/api/room-details?roomId=${roomId}`)
             .then((response) => {
                 if (!response.ok) throw new Error('Failed to fetch room details');
                 return response.json();
@@ -21,6 +24,7 @@ function RoomPage() {
             .then((details) => {
                 setRoomDetails(details);
 
+                // Access camera and microphone
                 navigator.mediaDevices.getUserMedia({ video: true, audio: true })
                     .then((stream) => {
                         localStreamRef.current = stream;
@@ -28,7 +32,6 @@ function RoomPage() {
                         const localVideo = localVideoRef.current;
                         if (localVideo) {
                             localVideo.srcObject = stream;
-                            // Ensure play() is called after metadata is loaded
                             localVideo.onloadedmetadata = () => {
                                 localVideo.play().catch((err) => {
                                     console.error('Error playing video:', err);
@@ -36,10 +39,12 @@ function RoomPage() {
                             };
                         }
 
+                        // Check if the current user is the instructor
                         if (details.instructorId === socket.id) {
                             console.log('You are the instructor. Main video feed is active.');
                         }
 
+                        // Join the room via Socket.IO
                         socket.emit('join-room', { roomId });
                     })
                     .catch((err) => {
@@ -54,13 +59,13 @@ function RoomPage() {
                 window.location.href = '/';
             });
 
-        // Handle WebRTC signaling
+        // WebSocket listeners for signaling
         socket.on('signal', handleSignal);
         socket.on('user-connected', handleUserConnected);
         socket.on('user-disconnected', handleUserDisconnected);
 
+        // Cleanup on unmount
         return () => {
-            // Cleanup on unmount
             Object.values(peerConnections.current).forEach((pc) => pc.close());
             socket.emit('leave-room', { roomId });
         };
@@ -107,6 +112,7 @@ function RoomPage() {
             iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
         });
 
+        // Add local stream tracks to the peer connection
         localStreamRef.current.getTracks().forEach((track) => pc.addTrack(track, localStreamRef.current));
 
         pc.onicecandidate = (event) => {
