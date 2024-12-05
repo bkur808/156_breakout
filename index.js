@@ -49,6 +49,14 @@ app.post('/api/create-room', (req, res) => {
     res.status(201).json({ message: 'Room created', roomId });
 });
 
+// Serve the static React app
+app.use(express.static(path.join(__dirname, 'frontend/build')));
+
+// Dynamic route for React app
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'frontend/build', 'index.html'));
+});
+
 // Socket.io connection
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
@@ -145,7 +153,6 @@ io.on('connection', (socket) => {
         console.log(`User disconnected: ${socket.id}`);
     });
 });
-
 
 // Start the server
 const PORT = process.env.PORT || 5000;
