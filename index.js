@@ -1,3 +1,31 @@
+const express = require('express');
+const cors = require('cors');
+const http = require('http');
+const { Server } = require('socket.io');
+const path = require('path');
+
+const app = express();
+app.use(express.json());
+
+// Configure CORS dynamically based on environment
+app.use(
+    cors({
+        origin: process.env.NODE_ENV === 'production' ? '*' : 'http://localhost:3000',
+        methods: ['GET', 'POST'],
+    })
+);
+
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: {
+        origin: process.env.NODE_ENV === 'production' ? '*' : 'http://localhost:3000',
+        methods: ['GET', 'POST'],
+    },
+});
+
+// In-memory store for rooms
+const rooms = new Map();
+
 // Room creation endpoint
 app.post('/api/create-room', (req, res) => {
     const { roomId, passcode, isProtected, instructorId } = req.body;
