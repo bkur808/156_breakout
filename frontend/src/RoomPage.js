@@ -5,55 +5,38 @@ import { SocketContext } from './App';
 function RoomPage() {
     const { roomId } = useParams();
     const socket = useContext(SocketContext);
-    const [participants, setParticipants] = useState(Array(10).fill(null)); // Initialize with 10 empty seats
-    const [roomDetails, setRoomDetails] = useState(null);
-    const [role, setRole] = useState(null); // Store the user's role
+    const [participants, setParticipants] = useState(Array(10).fill(null)); // Initialize 10 empty seats
     const localVideoRef = useRef(null);
     const peerConnections = useRef({});
     const localStreamRef = useRef(null);
 
-    // Base URL dynamically detected
     const baseUrl = window.location.origin;
 
     useEffect(() => {
-        console.log('Initializing room with ID:', roomId);
-    
+        console.log(`Joining room with ID: ${roomId}`);
+
         fetch(`${baseUrl}/${roomId}`)
             .then((response) => {
                 if (!response.ok) throw new Error(`Failed to fetch room details (status: ${response.status})`);
                 return response.json();
             })
-            .then((details) => {
-                console.log('Room details fetched successfully:', details);
-                setRoomDetails(details);
-    
-                return navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            })
+            .then(() => navigator.mediaDevices.getUserMedia({ video: true, audio: true }))
             .then((stream) => {
-                console.log('Media stream initialized');
                 localStreamRef.current = stream;
-    
+
                 const localVideo = localVideoRef.current;
                 if (localVideo) {
                     localVideo.srcObject = stream;
                     localVideo.onloadedmetadata = () => localVideo.play().catch(console.error);
                 }
-    
+
                 socket.emit('join-room', { roomId });
-    
-                // Listen for role assignment
-                socket.on('role-assigned', ({ role }) => {
-                    setRole(role);
-                    console.log(`Assigned role: ${role}`);
-                });
-    
-                // Listen for seat updates
+
                 socket.on('seat-updated', (updatedParticipants) => {
                     console.log('Updated participants:', updatedParticipants);
                     setParticipants(updatedParticipants);
                 });
-    
-                // WebRTC signaling
+
                 socket.on('signal', handleSignal);
                 socket.on('user-connected', handleUserConnected);
                 socket.on('user-disconnected', handleUserDisconnected);
@@ -63,14 +46,12 @@ function RoomPage() {
                 alert('Failed to initialize room. Redirecting to homepage.');
                 window.location.href = '/';
             });
-    
+
         return () => {
-            console.log('Cleaning up room:', roomId);
             Object.values(peerConnections.current).forEach((pc) => pc.close());
             socket.emit('leave-room', { roomId });
         };
     }, [roomId, socket, baseUrl]);
-    
 
     const handleUserConnected = (userId) => {
         console.log(`User connected: ${userId}`);
@@ -113,7 +94,6 @@ function RoomPage() {
             iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
         });
 
-        // Add local stream tracks to the peer connection
         localStreamRef.current.getTracks().forEach((track) => pc.addTrack(track, localStreamRef.current));
 
         pc.onicecandidate = (event) => {
@@ -145,13 +125,6 @@ function RoomPage() {
     return (
         <div className="room-page">
             <h1>Room ID: {roomId}</h1>
-            {roomDetails && (
-                <p>
-                    {role === 'instructor'
-                        ? 'You are the instructor. Main video feed is active.'
-                        : `Instructor: ${roomDetails.instructorId}`}
-                </p>
-            )}
             <div className="main-video">
                 <video ref={localVideoRef} className="video-feed" autoPlay playsInline muted />
             </div>

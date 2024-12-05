@@ -17,14 +17,14 @@ function HomePage() {
             alert('Please enter a Room ID or generate one.');
             return;
         }
-
+    
         const payload = {
             roomId,
             passcode: isProtected ? passcode : null,
             isProtected,
-            instructorId: socket.id,
+            instructorId: socket.id, // Pass the creator's Socket.IO ID as the instructorId
         };
-
+    
         fetch(`${baseUrl}/api/create-room`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -42,10 +42,11 @@ function HomePage() {
                 if (isProtected) {
                     localStorage.setItem(`passcode-${roomId}`, passcode);
                 }
-                navigate(`/${roomId}`);
+                navigate(`/${roomId}`); // Navigate to the room page after successful creation
             })
             .catch((err) => alert(`Error creating room: ${err.message}`));
     };
+    
 
     const joinRoom = () => {
         if (!roomId) {
