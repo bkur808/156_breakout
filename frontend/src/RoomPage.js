@@ -16,58 +16,61 @@ function RoomPage() {
     const baseUrl = window.location.origin;
 
     useEffect(() => {
-        // Fetch room details using the current URL
+        console.log('Initializing room with ID:', roomId);
+    
         fetch(`${baseUrl}/${roomId}`)
             .then((response) => {
-                if (!response.ok) throw new Error('Failed to fetch room details');
+                if (!response.ok) throw new Error(`Failed to fetch room details (status: ${response.status})`);
                 return response.json();
             })
             .then((details) => {
+                console.log('Room details fetched successfully:', details);
                 setRoomDetails(details);
-
-                // Access camera and microphone
+    
                 return navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             })
             .then((stream) => {
+                console.log('Media stream initialized');
                 localStreamRef.current = stream;
-
+    
                 const localVideo = localVideoRef.current;
                 if (localVideo) {
                     localVideo.srcObject = stream;
                     localVideo.onloadedmetadata = () => localVideo.play().catch(console.error);
                 }
-
-                // Join the room via Socket.IO
+    
                 socket.emit('join-room', { roomId });
-
+    
                 // Listen for role assignment
                 socket.on('role-assigned', ({ role }) => {
                     setRole(role);
-                    console.log(`You are assigned the role: ${role}`);
+                    console.log(`Assigned role: ${role}`);
                 });
-
-                // Handle seat updates
+    
+                // Listen for seat updates
                 socket.on('seat-updated', (updatedParticipants) => {
+                    console.log('Updated participants:', updatedParticipants);
                     setParticipants(updatedParticipants);
                 });
-
+    
                 // WebRTC signaling
                 socket.on('signal', handleSignal);
                 socket.on('user-connected', handleUserConnected);
                 socket.on('user-disconnected', handleUserDisconnected);
             })
             .catch((err) => {
-                console.error('Error fetching room details or accessing media devices:', err.message);
+                console.error('Error initializing room:', err);
                 alert('Failed to initialize room. Redirecting to homepage.');
                 window.location.href = '/';
             });
-
-        // Cleanup on unmount
+    
         return () => {
+            console.log('Cleaning up room:', roomId);
             Object.values(peerConnections.current).forEach((pc) => pc.close());
             socket.emit('leave-room', { roomId });
         };
     }, [roomId, socket, baseUrl]);
+    
 
     const handleUserConnected = (userId) => {
         console.log(`User connected: ${userId}`);
