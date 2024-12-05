@@ -7,15 +7,10 @@ const path = require('path');
 const app = express();
 app.use(express.json());
 
-// Serve static files from the React app
-app.use(express.static(path.join(__dirname, 'frontend/build')));
-
 // Configure CORS dynamically based on environment
 app.use(
     cors({
-        origin: (process.env.NODE_ENV === 'production')
-            ? '*' // Allow all origins for production
-            : 'http://localhost:3000', // Local dev origin
+        origin: process.env.NODE_ENV === 'production' ? '*' : 'http://localhost:3000',
         methods: ['GET', 'POST'],
     })
 );
@@ -23,26 +18,18 @@ app.use(
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: (process.env.NODE_ENV === 'production')
-            ? '*' // Allow all origins for production
-            : 'http://localhost:3000', // Local dev origin
+        origin: process.env.NODE_ENV === 'production' ? '*' : 'http://localhost:3000',
         methods: ['GET', 'POST'],
     },
 });
 
-// In-memory store for rooms with passcode, expiration, and participants
+// In-memory store for rooms
 const rooms = new Map();
-
-// Basic routes
-app.get('/api/message', (req, res) => {
-    res.json({ message: "Hello from the backend!" });
-});
 
 // Room creation endpoint
 app.post('/api/create-room', (req, res) => {
     const { roomId, passcode, isProtected, instructorId } = req.body;
 
-    // Check if room already exists
     if (rooms.has(roomId)) {
         return res.status(400).json({ error: 'Room ID already exists. Please choose a different Room ID.' });
     }
@@ -50,7 +37,6 @@ app.post('/api/create-room', (req, res) => {
     const expirationTime = Date.now() + 30 * 60 * 1000; // Room expires in 30 minutes
     const participants = Array(10).fill(null);
 
-    // Store room details
     rooms.set(roomId, {
         passcode: isProtected ? passcode : null,
         isProtected,
@@ -78,7 +64,27 @@ app.get('/api/validate-room', (req, res) => {
     res.status(200).json({ message: 'Room validated' });
 });
 
-// Serve React app for any unmatched routes
+// Dynamic route to fetch room details
+app.get('/:roomId', (req, res, next) => {
+    const { roomId } = req.params;
+
+    // Check if roomId exists in rooms map
+    const roomData = rooms.get(roomId);
+
+    if (roomData) {
+        return res.status(200).json({
+            roomId,
+            instructorId: roomData.instructorId,
+            isProtected: roomData.isProtected,
+        });
+    }
+
+    // If no room data, continue to serve React app
+    next();
+});
+
+// Serve React app for all unmatched routes
+app.use(express.static(path.join(__dirname, 'frontend/build')));
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'frontend/build', 'index.html'));
 });
@@ -102,18 +108,14 @@ io.on('connection', (socket) => {
 
         socket.join(roomId);
         console.log(`User ${socket.id} joined room ${roomId}`);
-
-        // Notify other users in the room
         socket.to(roomId).emit('user-connected', socket.id);
         socket.emit('seat-updated', roomData.participants);
     });
 
-    // WebRTC signaling
     socket.on('signal', ({ roomId, userId, offer, answer, candidate }) => {
         io.to(userId).emit('signal', { userId: socket.id, offer, answer, candidate });
     });
 
-    // Claim seat
     socket.on('claim-seat', ({ roomId, seatIndex }, callback) => {
         const roomData = rooms.get(roomId);
 
