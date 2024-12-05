@@ -1,31 +1,3 @@
-const express = require('express');
-const cors = require('cors');
-const http = require('http');
-const { Server } = require('socket.io');
-const path = require('path');
-
-const app = express();
-app.use(express.json());
-
-// Configure CORS dynamically based on environment
-app.use(
-    cors({
-        origin: process.env.NODE_ENV === 'production' ? '*' : 'http://localhost:3000',
-        methods: ['GET', 'POST'],
-    })
-);
-
-const server = http.createServer(app);
-const io = new Server(server, {
-    cors: {
-        origin: process.env.NODE_ENV === 'production' ? '*' : 'http://localhost:3000',
-        methods: ['GET', 'POST'],
-    },
-});
-
-// In-memory store for rooms
-const rooms = new Map();
-
 // Room creation endpoint
 app.post('/api/create-room', (req, res) => {
     const { roomId, passcode, isProtected, instructorId } = req.body;
@@ -37,56 +9,16 @@ app.post('/api/create-room', (req, res) => {
     const expirationTime = Date.now() + 30 * 60 * 1000; // Room expires in 30 minutes
     const participants = Array(10).fill(null);
 
+    // Store the room details with the instructorId as the socket ID of the creator
     rooms.set(roomId, {
         passcode: isProtected ? passcode : null,
         isProtected,
-        instructorId,
+        instructorId, // This ensures the creator is always the instructor
         expirationTime,
         participants,
     });
 
     res.status(201).json({ message: 'Room created', roomId });
-});
-
-// Room validation endpoint
-app.get('/api/validate-room', (req, res) => {
-    const { roomId, passcode } = req.query;
-
-    const roomData = rooms.get(roomId);
-    if (!roomData) {
-        return res.status(404).json({ error: 'Room does not exist.' });
-    }
-
-    if (roomData.isProtected && (!passcode || roomData.passcode !== passcode)) {
-        return res.status(403).json({ error: 'Incorrect passcode.' });
-    }
-
-    res.status(200).json({ message: 'Room validated' });
-});
-
-// Dynamic route to fetch room details
-app.get('/:roomId', (req, res, next) => {
-    const { roomId } = req.params;
-
-    // Check if roomId exists in rooms map
-    const roomData = rooms.get(roomId);
-
-    if (roomData) {
-        return res.status(200).json({
-            roomId,
-            instructorId: roomData.instructorId,
-            isProtected: roomData.isProtected,
-        });
-    }
-
-    // If no room data, continue to serve React app
-    next();
-});
-
-// Serve React app for all unmatched routes
-app.use(express.static(path.join(__dirname, 'frontend/build')));
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'frontend/build', 'index.html'));
 });
 
 // Socket.io connection
@@ -106,9 +38,35 @@ io.on('connection', (socket) => {
             return;
         }
 
+        const isInstructor = roomData.instructorId === socket.id;
+
+        // Notify the user of their role
+        socket.emit('role-assigned', { role: isInstructor ? 'instructor' : 'student' });
+
+        if (!isInstructor) {
+            // Assign the student to a free seat
+            const freeSeatIndex = roomData.participants.findIndex((seat) => seat === null);
+            if (freeSeatIndex !== -1) {
+                roomData.participants[freeSeatIndex] = socket.id;
+                rooms.set(roomId, roomData);
+
+                console.log(`Student ${socket.id} assigned to seat ${freeSeatIndex} in room ${roomId}`);
+            } else {
+                console.warn(`No free seats available in room ${roomId}`);
+                socket.emit('error', 'No seats available in this room.');
+                return;
+            }
+        } else {
+            console.log(`Instructor ${socket.id} joined room ${roomId}`);
+        }
+
+        // Join the Socket.IO room
         socket.join(roomId);
-        console.log(`User ${socket.id} joined room ${roomId}`);
+
+        // Notify other users in the room about the new connection
         socket.to(roomId).emit('user-connected', socket.id);
+
+        // Notify the user about current seat data
         socket.emit('seat-updated', roomData.participants);
     });
 
@@ -159,6 +117,7 @@ io.on('connection', (socket) => {
         console.log(`User disconnected: ${socket.id}`);
     });
 });
+
 
 // Start the server
 const PORT = process.env.PORT || 5000;

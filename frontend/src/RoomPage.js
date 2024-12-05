@@ -5,8 +5,9 @@ import { SocketContext } from './App';
 function RoomPage() {
     const { roomId } = useParams();
     const socket = useContext(SocketContext);
-    const [participants, setParticipants] = useState({});
+    const [participants, setParticipants] = useState(Array(10).fill(null)); // Initialize with 10 empty seats
     const [roomDetails, setRoomDetails] = useState(null);
+    const [role, setRole] = useState(null); // Store the user's role
     const localVideoRef = useRef(null);
     const peerConnections = useRef({});
     const localStreamRef = useRef(null);
@@ -25,44 +26,41 @@ function RoomPage() {
                 setRoomDetails(details);
 
                 // Access camera and microphone
-                navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-                    .then((stream) => {
-                        localStreamRef.current = stream;
+                return navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            })
+            .then((stream) => {
+                localStreamRef.current = stream;
 
-                        const localVideo = localVideoRef.current;
-                        if (localVideo) {
-                            localVideo.srcObject = stream;
-                            localVideo.onloadedmetadata = () => {
-                                localVideo.play().catch((err) => {
-                                    console.error('Error playing video:', err);
-                                });
-                            };
-                        }
+                const localVideo = localVideoRef.current;
+                if (localVideo) {
+                    localVideo.srcObject = stream;
+                    localVideo.onloadedmetadata = () => localVideo.play().catch(console.error);
+                }
 
-                        // Check if the current user is the instructor
-                        if (details.instructorId === socket.id) {
-                            console.log('You are the instructor. Main video feed is active.');
-                        }
+                // Join the room via Socket.IO
+                socket.emit('join-room', { roomId });
 
-                        // Join the room via Socket.IO
-                        socket.emit('join-room', { roomId });
-                    })
-                    .catch((err) => {
-                        console.error('Error accessing media devices:', err);
-                        alert('Failed to access camera and microphone.');
-                    });
+                // Listen for role assignment
+                socket.on('role-assigned', ({ role }) => {
+                    setRole(role);
+                    console.log(`You are assigned the role: ${role}`);
+                });
 
+                // Handle seat updates
+                socket.on('seat-updated', (updatedParticipants) => {
+                    setParticipants(updatedParticipants);
+                });
+
+                // WebRTC signaling
+                socket.on('signal', handleSignal);
+                socket.on('user-connected', handleUserConnected);
+                socket.on('user-disconnected', handleUserDisconnected);
             })
             .catch((err) => {
-                console.error('Error fetching room details:', err.message);
-                alert('Failed to fetch room details. Redirecting to homepage.');
+                console.error('Error fetching room details or accessing media devices:', err.message);
+                alert('Failed to initialize room. Redirecting to homepage.');
                 window.location.href = '/';
             });
-
-        // WebSocket listeners for signaling
-        socket.on('signal', handleSignal);
-        socket.on('user-connected', handleUserConnected);
-        socket.on('user-disconnected', handleUserDisconnected);
 
         // Cleanup on unmount
         return () => {
@@ -82,13 +80,13 @@ function RoomPage() {
             peerConnections.current[userId].close();
             delete peerConnections.current[userId];
         }
-        if (participants[userId]) {
-            setParticipants((prev) => {
-                const updated = { ...prev };
-                delete updated[userId];
-                return updated;
-            });
-        }
+
+        setParticipants((prev) => {
+            const updated = [...prev];
+            const seatIndex = updated.findIndex((seat) => seat === userId);
+            if (seatIndex !== -1) updated[seatIndex] = null;
+            return updated;
+        });
     };
 
     const handleSignal = async ({ userId, offer, answer, candidate }) => {
@@ -122,10 +120,12 @@ function RoomPage() {
         };
 
         pc.ontrack = (event) => {
-            setParticipants((prev) => ({
-                ...prev,
-                [userId]: event.streams[0],
-            }));
+            setParticipants((prev) => {
+                const updated = [...prev];
+                const seatIndex = updated.findIndex((seat) => seat === null);
+                if (seatIndex !== -1) updated[seatIndex] = event.streams[0];
+                return updated;
+            });
         };
 
         if (createOffer) {
@@ -144,7 +144,7 @@ function RoomPage() {
             <h1>Room ID: {roomId}</h1>
             {roomDetails && (
                 <p>
-                    {roomDetails.instructorId === socket.id
+                    {role === 'instructor'
                         ? 'You are the instructor. Main video feed is active.'
                         : `Instructor: ${roomDetails.instructorId}`}
                 </p>
@@ -153,16 +153,20 @@ function RoomPage() {
                 <video ref={localVideoRef} className="video-feed" autoPlay playsInline muted />
             </div>
             <div className="seat-grid">
-                {Object.entries(participants).map(([userId, stream], index) => (
-                    <div key={userId} className="seat-box">
-                        <video
-                            ref={(el) => {
-                                if (el) el.srcObject = stream;
-                            }}
-                            className="video-feed"
-                            autoPlay
-                            playsInline
-                        />
+                {participants.map((stream, index) => (
+                    <div key={index} className="seat-box">
+                        {stream ? (
+                            <video
+                                ref={(el) => {
+                                    if (el) el.srcObject = stream;
+                                }}
+                                className="video-feed"
+                                autoPlay
+                                playsInline
+                            />
+                        ) : (
+                            <div className="empty-seat">Seat {index + 1}</div>
+                        )}
                     </div>
                 ))}
             </div>
