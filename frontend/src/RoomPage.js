@@ -11,12 +11,12 @@ function RoomPage() {
     const peerConnections = useRef({});
     const localStreamRef = useRef(null);
 
-    // Determine the base URL dynamically
-    const baseUrl = process.env.REACT_APP_BASE_URL || window.location.origin;
+    // Base URL dynamically detected
+    const baseUrl = window.location.origin;
 
     useEffect(() => {
-        // Fetch room details and initialize local video stream
-        fetch(`${baseUrl}/api/room-details?roomId=${roomId}`)
+        // Fetch room details using the current URL
+        fetch(`${baseUrl}/${roomId}`)
             .then((response) => {
                 if (!response.ok) throw new Error('Failed to fetch room details');
                 return response.json();
@@ -69,7 +69,7 @@ function RoomPage() {
             Object.values(peerConnections.current).forEach((pc) => pc.close());
             socket.emit('leave-room', { roomId });
         };
-    }, [roomId, socket]);
+    }, [roomId, socket, baseUrl]);
 
     const handleUserConnected = (userId) => {
         console.log(`User connected: ${userId}`);
