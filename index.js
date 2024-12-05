@@ -49,10 +49,27 @@ app.post('/api/create-room', (req, res) => {
     res.status(201).json({ message: 'Room created', roomId });
 });
 
+// Room details endpoint
+app.get('/:roomId', (req, res, next) => {
+    const { roomId } = req.params;
+    const roomData = rooms.get(roomId);
+
+    if (roomData) {
+        return res.status(200).json({
+            roomId,
+            instructorId: roomData.instructorId,
+            isProtected: roomData.isProtected,
+        });
+    }
+
+    // If the room doesn't exist, continue to the React app
+    next();
+});
+
 // Serve the static React app
 app.use(express.static(path.join(__dirname, 'frontend/build')));
 
-// Dynamic route for React app
+// Catch-all route to serve React
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'frontend/build', 'index.html'));
 });
