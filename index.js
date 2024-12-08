@@ -27,6 +27,14 @@ const io = new Server(server, {
     },
 });
 
+redis.ping((err, result) => {
+    if (err) {
+        console.error('Redis connection error:', err.message);
+    } else {
+        console.log('Redis connected successfully:', result);
+    }
+});
+
 // Room creation endpoint
 app.post('/api/create-room', async (req, res) => {
     console.log('Received POST /api/create-room'); // Debug log to confirm the request hits
