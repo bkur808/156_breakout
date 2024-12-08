@@ -10,12 +10,11 @@ function RoomPage() {
     const peerConnections = useRef({});
     const localStreamRef = useRef(null);
 
-    const baseUrl = window.location.origin;
-
     useEffect(() => {
         console.log(`Joining room with ID: ${roomId}`);
 
-        fetch(`${baseUrl}/${roomId}`)
+        // Fetch room details to validate the room
+        fetch(`/api/validate-room?roomId=${roomId}`)
             .then((response) => {
                 if (!response.ok) throw new Error(`Failed to fetch room details (status: ${response.status})`);
                 return response.json();
@@ -24,14 +23,17 @@ function RoomPage() {
             .then((stream) => {
                 localStreamRef.current = stream;
 
+                // Display local video stream
                 const localVideo = localVideoRef.current;
                 if (localVideo) {
                     localVideo.srcObject = stream;
                     localVideo.onloadedmetadata = () => localVideo.play().catch(console.error);
                 }
 
+                // Join room via Socket.IO
                 socket.emit('join-room', { roomId });
 
+                // Listen for updates
                 socket.on('seat-updated', (updatedParticipants) => {
                     console.log('Updated participants:', updatedParticipants);
                     setParticipants(updatedParticipants);
@@ -42,16 +44,21 @@ function RoomPage() {
                 socket.on('user-disconnected', handleUserDisconnected);
             })
             .catch((err) => {
-                console.error('Error initializing room:', err);
+                console.error('Error initializing room:', err.message);
                 alert('Failed to initialize room. Redirecting to homepage.');
                 window.location.href = '/';
             });
 
         return () => {
+            // Cleanup peer connections
             Object.values(peerConnections.current).forEach((pc) => pc.close());
             socket.emit('leave-room', { roomId });
+            socket.off('seat-updated');
+            socket.off('signal');
+            socket.off('user-connected');
+            socket.off('user-disconnected');
         };
-    }, [roomId, socket, baseUrl]);
+    }, [roomId, socket]);
 
     const handleUserConnected = (userId) => {
         console.log(`User connected: ${userId}`);
@@ -94,6 +101,7 @@ function RoomPage() {
             iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
         });
 
+        // Add local stream tracks
         localStreamRef.current.getTracks().forEach((track) => pc.addTrack(track, localStreamRef.current));
 
         pc.onicecandidate = (event) => {

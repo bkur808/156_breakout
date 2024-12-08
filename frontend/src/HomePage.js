@@ -9,23 +9,23 @@ function HomePage() {
     const navigate = useNavigate();
     const socket = useContext(SocketContext);
 
-    // Determine the base URL dynamically for Heroku and local environments
-    const baseUrl = process.env.REACT_APP_BASE_URL || window.location.origin;
+    // Use relative URL for API calls to work on both local and production environments
+    const baseUrl = window.location.origin;
 
     const createRoom = () => {
         if (!roomId) {
             alert('Please enter a Room ID or generate one.');
             return;
         }
-    
+
         const payload = {
             roomId,
             passcode: isProtected ? passcode : null,
             isProtected,
             instructorId: socket.id, // Pass the creator's Socket.IO ID as the instructorId
         };
-    
-        fetch(`${baseUrl}/api/create-room`, {
+
+        fetch(`/api/create-room`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
@@ -46,7 +46,6 @@ function HomePage() {
             })
             .catch((err) => alert(`Error creating room: ${err.message}`));
     };
-    
 
     const joinRoom = () => {
         if (!roomId) {
@@ -54,7 +53,7 @@ function HomePage() {
             return;
         }
 
-        fetch(`${baseUrl}/api/validate-room?roomId=${roomId}&passcode=${passcode}`)
+        fetch(`/api/validate-room?roomId=${roomId}&passcode=${passcode}`)
             .then((response) => {
                 if (!response.ok) {
                     return response.json().then((error) => {
