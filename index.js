@@ -29,26 +29,44 @@ const io = new Server(server, {
 
 // Room creation endpoint
 app.post('/api/create-room', async (req, res) => {
-    const { roomId, passcode, isProtected, instructorId } = req.body;
+    console.log('Received POST /api/create-room'); // Debug log to confirm the request hits
+    console.log('Request Body:', req.body); // Debug the payload
 
-    const roomKey = `room:${roomId}`;
-    const roomExists = await redis.exists(roomKey);
+    try {
+        const { roomId, passcode, isProtected, instructorId } = req.body;
 
-    if (roomExists) {
-        return res.status(400).json({ error: 'Room ID already exists. Please choose a different Room ID.' });
+        // Check required parameters
+        if (!roomId || !instructorId) {
+            console.log('Missing required fields');
+            return res.status(400).json({ error: 'Missing required fields: roomId or instructorId.' });
+        }
+
+        // Redis logic
+        const roomKey = `room:${roomId}`;
+        const roomExists = await redis.exists(roomKey);
+
+        if (roomExists) {
+            console.log('Room already exists');
+            return res.status(400).json({ error: 'Room ID already exists. Please choose a different Room ID.' });
+        }
+
+        const roomData = {
+            passcode: isProtected ? passcode : null,
+            isProtected,
+            instructorId,
+            participants: Array(10).fill(null),
+        };
+
+        await redis.set(roomKey, JSON.stringify(roomData), 'EX', 1800); // Set with 30 min expiry
+        console.log('Room created successfully:', roomId);
+
+        res.status(201).json({ message: 'Room created', roomId });
+    } catch (err) {
+        console.error('Error in /api/create-room:', err.message);
+        res.status(500).json({ error: 'Internal Server Error' });
     }
-
-    const roomData = {
-        passcode: isProtected ? passcode : null,
-        isProtected,
-        instructorId,
-        participants: Array(10).fill(null),
-    };
-
-    await redis.set(roomKey, JSON.stringify(roomData), 'EX', 1800); // Room expires in 30 minutes
-    console.log(`Room created: ${roomId} with instructorId: ${instructorId}`);
-    res.status(201).json({ message: 'Room created', roomId });
 });
+
 
 // Validate room endpoint
 app.get('/api/validate-room', async (req, res) => {
