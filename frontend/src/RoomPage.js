@@ -1,6 +1,7 @@
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { SocketContext } from './App';
+import 'webrtc-adapter'; // used for compatability between different browsers
 
 function RoomPage() {
     const { roomId } = useParams();
@@ -74,22 +75,30 @@ function RoomPage() {
     const handleUserDisconnected = (userId) => {
         console.log(`User disconnected: ${userId}`);
         if (peerConnections.current[userId]) {
+            peerConnections.current[userId].onicecandidate = null;
+            peerConnections.current[userId].ontrack = null;
             peerConnections.current[userId].close();
             delete peerConnections.current[userId];
         }
-        if (participants[userId]) {
-            setParticipants((prev) => {
-                const updated = { ...prev };
-                delete updated[userId];
-                return updated;
-            });
-        }
+        setParticipants((prev) => {
+            const updated = { ...prev };
+            delete updated[userId];
+            return updated;
+        });
     };
+
+    const iceCandidateQueue = {};
 
     const handleSignal = async ({ userId, offer, answer, candidate }) => {
         const pc = peerConnections.current[userId];
-        if (!pc) return;
-
+    
+        if (!pc) {
+            // Queue ICE candidates if the peer connection isn't ready
+            iceCandidateQueue[userId] = iceCandidateQueue[userId] || [];
+            iceCandidateQueue[userId].push(candidate);
+            return;
+        }
+    
         if (offer) {
             await pc.setRemoteDescription(new RTCSessionDescription(offer));
             const answer = await pc.createAnswer();
@@ -100,12 +109,31 @@ function RoomPage() {
         } else if (candidate) {
             await pc.addIceCandidate(new RTCIceCandidate(candidate));
         }
-    };
+    
+        // Process queued candidates if any
+        if (iceCandidateQueue[userId]) {
+            iceCandidateQueue[userId].forEach(async (queuedCandidate) => {
+                await pc.addIceCandidate(new RTCIceCandidate(queuedCandidate));
+            });
+            delete iceCandidateQueue[userId];
+        }
+        pc.onconnectionstatechange = () => console.log(`Connection state: ${pc.connectionState}`);
+        pc.oniceconnectionstatechange = () => console.log(`ICE connection state: ${pc.iceConnectionState}`);
 
+    };
+    
     const createPeerConnection = (userId, createOffer) => {
         const pc = new RTCPeerConnection({
-            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                {
+                    urls: 'turn:192.168.1.66:3478',
+                    username: 'Ola',
+                    credential: 'CSci156P',
+                },
+            ],
         });
+        
 
         localStreamRef.current.getTracks().forEach((track) => pc.addTrack(track, localStreamRef.current));
 
