@@ -1,0 +1,16 @@
+{
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "ioredis": "^5.4.1",
+    "socket.io": "^4.8.1"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "heroku-postbuild": "cd frontend/src && npm install && npm run build"
+  },
+  "engines": {
+    "node": "18.x"
+  }
+}

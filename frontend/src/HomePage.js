@@ -9,6 +9,9 @@ function HomePage() {
     const navigate = useNavigate();
     const socket = useContext(SocketContext);
 
+    // Use relative URL for API calls to work on both local and production environments
+    const baseUrl = window.location.origin;
+
     const createRoom = () => {
         if (!roomId) {
             alert('Please enter a Room ID or generate one.');
@@ -19,10 +22,10 @@ function HomePage() {
             roomId,
             passcode: isProtected ? passcode : null,
             isProtected,
-            instructorId: socket.id,
+            instructorId: socket.id, // Pass the creator's Socket.IO ID as the instructorId
         };
 
-        fetch('http://localhost:5000/api/create-room', {
+        fetch(`/api/create-room`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
@@ -37,10 +40,11 @@ function HomePage() {
             })
             .then(() => {
                 if (isProtected) {
-                    localStorage.setItem(`passcode-${roomId}`, passcode);
+                    localStorage.setItem(`passcode-${roomId}`, passcode); // Store the passcode in localStorage
                 }
-                navigate(`/${roomId}`);
+                navigate(`/${roomId}`); // Redirect to the room page
             })
+            
             .catch((err) => alert(`Error creating room: ${err.message}`));
     };
 
@@ -50,7 +54,7 @@ function HomePage() {
             return;
         }
 
-        fetch(`http://localhost:5000/api/validate-room?roomId=${roomId}&passcode=${passcode}`)
+        fetch(`/api/validate-room?roomId=${roomId}&passcode=${passcode}`)
             .then((response) => {
                 if (!response.ok) {
                     return response.json().then((error) => {

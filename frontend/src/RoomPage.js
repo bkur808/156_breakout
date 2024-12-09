@@ -6,66 +6,76 @@ import 'webrtc-adapter'; // used for compatability between different browsers
 function RoomPage() {
     const { roomId } = useParams();
     const socket = useContext(SocketContext);
-    const [participants, setParticipants] = useState({});
-    const [roomDetails, setRoomDetails] = useState(null);
+    const [participants, setParticipants] = useState(Array(10).fill(null)); // Initialize 10 empty seats
     const localVideoRef = useRef(null);
     const peerConnections = useRef({});
     const localStreamRef = useRef(null);
 
     useEffect(() => {
-        // Fetch room details and initialize local video stream
-        fetch(`http://localhost:5000/api/room-details?roomId=${roomId}`)
+        console.log(`Joining room with ID: ${roomId}`);
+    
+        // Attempt to retrieve passcode only if stored (assumed for instructor)
+        const storedPasscode = localStorage.getItem(`passcode-${roomId}`);
+    
+        let isInstructor = false; // Track if the current user is the instructor
+    
+        // Fetch room details to validate the room
+        fetch(`/api/validate-room?roomId=${roomId}&passcode=${storedPasscode || ''}`)
             .then((response) => {
-                if (!response.ok) throw new Error('Failed to fetch room details');
+                if (!response.ok) throw new Error(`Failed to fetch room details (status: ${response.status})`);
                 return response.json();
             })
-            .then((details) => {
-                setRoomDetails(details);
-
-                navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-                    .then((stream) => {
-                        localStreamRef.current = stream;
-
-                        const localVideo = localVideoRef.current;
-                        if (localVideo) {
-                            localVideo.srcObject = stream;
-                            // Ensure play() is called after metadata is loaded
-                            localVideo.onloadedmetadata = () => {
-                                localVideo.play().catch((err) => {
-                                    console.error('Error playing video:', err);
-                                });
-                            };
-                        }
-
-                        if (details.instructorId === socket.id) {
-                            console.log('You are the instructor. Main video feed is active.');
-                        }
-
-                        socket.emit('join-room', { roomId });
-                    })
-                    .catch((err) => {
-                        console.error('Error accessing media devices:', err);
-                        alert('Failed to access camera and microphone.');
-                    });
-
+            .then((data) => {
+                isInstructor = socket.id === data.instructorId; // Compare socket ID to instructorId
+    
+                // If the user is the instructor, allow stored passcode
+                const passcodeToSend = isInstructor ? storedPasscode : null;
+    
+                // Join room via Socket.IO
+                socket.emit('join-room', { roomId, passcode: passcodeToSend });
+    
+                // Get local media stream
+                return navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            })
+            .then((stream) => {
+                localStreamRef.current = stream;
+    
+                // Display local video stream
+                const localVideo = localVideoRef.current;
+                if (localVideo) {
+                    localVideo.srcObject = stream;
+                    localVideo.onloadedmetadata = () => localVideo.play().catch(console.error);
+                }
+    
+                // Listen for updates
+                socket.on('seat-updated', (updatedParticipants) => {
+                    console.log('Updated participants:', updatedParticipants);
+                    setParticipants(updatedParticipants);
+                });
+    
+                socket.on('signal', handleSignal);
+                socket.on('user-connected', handleUserConnected);
+                socket.on('user-disconnected', handleUserDisconnected);
             })
             .catch((err) => {
-                console.error('Error fetching room details:', err.message);
-                alert('Failed to fetch room details. Redirecting to homepage.');
+                console.error('Error initializing room:', err.message);
+                alert('Failed to initialize room. Redirecting to homepage.');
                 window.location.href = '/';
             });
-
-        // Handle WebRTC signaling
-        socket.on('signal', handleSignal);
-        socket.on('user-connected', handleUserConnected);
-        socket.on('user-disconnected', handleUserDisconnected);
-
+    
+        // Cleanup function
         return () => {
-            // Cleanup on unmount
+            console.log('Cleaning up resources...');
             Object.values(peerConnections.current).forEach((pc) => pc.close());
             socket.emit('leave-room', { roomId });
+            socket.off('seat-updated');
+            socket.off('signal');
+            socket.off('user-connected');
+            socket.off('user-disconnected');
         };
     }, [roomId, socket]);
+    
+    
 
     const handleUserConnected = (userId) => {
         console.log(`User connected: ${userId}`);
@@ -83,6 +93,7 @@ function RoomPage() {
         setParticipants((prev) => {
             const updated = { ...prev };
             delete updated[userId];
+
             return updated;
         });
     };
@@ -127,6 +138,7 @@ function RoomPage() {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
                 {
+
                     urls: 'turn:192.168.1.66:3478',
                     username: 'Ola',
                     credential: 'CSci156P',
@@ -134,22 +146,29 @@ function RoomPage() {
             ],
         });
         
-
         localStreamRef.current.getTracks().forEach((track) => pc.addTrack(track, localStreamRef.current));
-
+    
         pc.onicecandidate = (event) => {
             if (event.candidate) {
                 socket.emit('signal', { roomId, userId, candidate: event.candidate });
             }
         };
-
+    
+        // Handle remote stream tracks
         pc.ontrack = (event) => {
-            setParticipants((prev) => ({
-                ...prev,
-                [userId]: event.streams[0],
-            }));
+            console.log(`Received track from ${userId}`, event.streams);
+    
+            setParticipants((prev) => {
+                const updated = [...prev];
+                const seatIndex = updated.findIndex((seat) => seat === null);
+    
+                if (seatIndex !== -1 && event.streams[0]) {
+                    updated[seatIndex] = event.streams[0]; // Set the MediaStream
+                }
+                return updated;
+            });
         };
-
+    
         if (createOffer) {
             pc.createOffer()
                 .then((offer) => pc.setLocalDescription(offer))
@@ -157,37 +176,42 @@ function RoomPage() {
                     socket.emit('signal', { roomId, userId, offer: pc.localDescription });
                 });
         }
-
+    
         peerConnections.current[userId] = pc;
     };
+    
 
     return (
         <div className="room-page">
             <h1>Room ID: {roomId}</h1>
-            {roomDetails && (
-                <p>
-                    {roomDetails.instructorId === socket.id
-                        ? 'You are the instructor. Main video feed is active.'
-                        : `Instructor: ${roomDetails.instructorId}`}
-                </p>
-            )}
             <div className="main-video">
                 <video ref={localVideoRef} className="video-feed" autoPlay playsInline muted />
             </div>
             <div className="seat-grid">
-                {Object.entries(participants).map(([userId, stream], index) => (
-                    <div key={userId} className="seat-box">
-                        <video
-                            ref={(el) => {
-                                if (el) el.srcObject = stream;
-                            }}
-                            className="video-feed"
-                            autoPlay
-                            playsInline
-                        />
+                {participants.map((participant, index) => (
+                    <div key={index} className="seat-box">
+                        {/* Check if participant is a MediaStream */}
+                        {participant instanceof MediaStream ? (
+                            <video
+                                ref={(el) => {
+                                    if (el && participant) el.srcObject = participant;
+                                }}
+                                className="video-feed"
+                                autoPlay
+                                playsInline
+                            />
+                        ) : participant ? (
+                            // If participant is connected but stream not ready
+                            <div className="connected-seat">
+                                User {participant} is connecting...
+                            </div>
+                        ) : (
+                            <div className="empty-seat">Seat {index + 1}</div>
+                        )}
                     </div>
-                ))}
+            ))}
             </div>
+
         </div>
     );
 }
