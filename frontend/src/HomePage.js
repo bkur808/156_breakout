@@ -40,10 +40,11 @@ function HomePage() {
             })
             .then(() => {
                 if (isProtected) {
-                    localStorage.setItem(`passcode-${roomId}`, passcode);
+                    localStorage.setItem(`passcode-${roomId}`, passcode); // Store the passcode in localStorage
                 }
-                navigate(`/${roomId}`); // Navigate to the room page after successful creation
+                navigate(`/${roomId}`); // Redirect to the room page
             })
+            
             .catch((err) => alert(`Error creating room: ${err.message}`));
     };
 
