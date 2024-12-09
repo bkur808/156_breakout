@@ -1,3 +1,8 @@
+https://breakout156-b681cd0847ff.herokuapp.com/
+Backend - Node.js
+Frontend - React.js
+Hosting on Heroku
+
 Hey
 If you want to run w/ current setup -> Clone repository into a directory
 In a terminal, navigate to /backend and run command > node index.js
