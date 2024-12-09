@@ -115,6 +115,7 @@ io.on('connection', (socket) => {
 
         const parsedRoom = JSON.parse(roomData);
 
+        // Passcode validation
         if (parsedRoom.isProtected && parsedRoom.passcode !== passcode) {
             socket.emit('error', 'Incorrect passcode.');
             return;
@@ -139,6 +140,7 @@ io.on('connection', (socket) => {
             }
         }
 
+        // Emit updated participants and role
         socket.join(roomId);
         io.to(roomId).emit('seat-updated', parsedRoom.participants);
         socket.emit('role-assigned', { role: isInstructor ? 'instructor' : 'student' });
@@ -168,6 +170,7 @@ io.on('connection', (socket) => {
 
         console.log(`User disconnected: ${socket.id}`);
     });
+
 });
 
 // Serve the static React app

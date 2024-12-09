@@ -167,23 +167,30 @@ function RoomPage() {
                 <video ref={localVideoRef} className="video-feed" autoPlay playsInline muted />
             </div>
             <div className="seat-grid">
-                {participants.map((stream, index) => (
+                {participants.map((participant, index) => (
                     <div key={index} className="seat-box">
-                        {stream ? (
+                        {/* Check if participant is a MediaStream */}
+                        {participant instanceof MediaStream ? (
                             <video
                                 ref={(el) => {
-                                    if (el) el.srcObject = stream;
+                                    if (el && participant) el.srcObject = participant;
                                 }}
                                 className="video-feed"
                                 autoPlay
                                 playsInline
                             />
+                        ) : participant ? (
+                            // If participant is connected but stream not ready
+                            <div className="connected-seat">
+                                User {participant} is connecting...
+                            </div>
                         ) : (
                             <div className="empty-seat">Seat {index + 1}</div>
                         )}
                     </div>
-                ))}
+            ))}
             </div>
+
         </div>
     );
 }
