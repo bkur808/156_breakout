@@ -27,7 +27,7 @@ const io = new Server(server, {
     },
 });
 
-redis.ping((err, result) => {
+redis.ping((err, result) => { //to check if things are working right - look for PONG in the heroku logs
     if (err) {
         console.error('Redis connection error:', err.message);
     } else {
@@ -75,7 +75,6 @@ app.post('/api/create-room', async (req, res) => {
     }
 });
 
-
 // Validate room endpoint
 app.get('/api/validate-room', async (req, res) => {
     const { roomId, passcode } = req.query;
@@ -87,11 +86,17 @@ app.get('/api/validate-room', async (req, res) => {
     }
 
     const parsedRoom = JSON.parse(roomData);
+
+    // Passcode validation
     if (parsedRoom.isProtected && (!passcode || parsedRoom.passcode !== passcode)) {
         return res.status(403).json({ error: 'Incorrect passcode.' });
     }
 
-    res.status(200).json({ message: 'Room validated' });
+    // Include instructorId in the response for frontend to validate role
+    res.status(200).json({
+        message: 'Room validated',
+        instructorId: parsedRoom.instructorId, // Send instructor ID to the client
+    });
 });
 
 // Socket.IO connection

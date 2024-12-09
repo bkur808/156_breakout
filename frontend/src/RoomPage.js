@@ -13,8 +13,10 @@ function RoomPage() {
     useEffect(() => {
         console.log(`Joining room with ID: ${roomId}`);
     
-        // Retrieve passcode from localStorage, if it exists
+        // Attempt to retrieve passcode only if stored (assumed for instructor)
         const storedPasscode = localStorage.getItem(`passcode-${roomId}`);
+    
+        let isInstructor = false; // Track if the current user is the instructor
     
         // Fetch room details to validate the room
         fetch(`/api/validate-room?roomId=${roomId}&passcode=${storedPasscode || ''}`)
@@ -22,7 +24,18 @@ function RoomPage() {
                 if (!response.ok) throw new Error(`Failed to fetch room details (status: ${response.status})`);
                 return response.json();
             })
-            .then(() => navigator.mediaDevices.getUserMedia({ video: true, audio: true }))
+            .then((data) => {
+                isInstructor = socket.id === data.instructorId; // Compare socket ID to instructorId
+    
+                // If the user is the instructor, allow stored passcode
+                const passcodeToSend = isInstructor ? storedPasscode : null;
+    
+                // Join room via Socket.IO
+                socket.emit('join-room', { roomId, passcode: passcodeToSend });
+    
+                // Get local media stream
+                return navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            })
             .then((stream) => {
                 localStreamRef.current = stream;
     
@@ -32,9 +45,6 @@ function RoomPage() {
                     localVideo.srcObject = stream;
                     localVideo.onloadedmetadata = () => localVideo.play().catch(console.error);
                 }
-    
-                // Join room via Socket.IO, include the passcode
-                socket.emit('join-room', { roomId, passcode: storedPasscode });
     
                 // Listen for updates
                 socket.on('seat-updated', (updatedParticipants) => {
@@ -55,14 +65,15 @@ function RoomPage() {
         // Cleanup function
         return () => {
             console.log('Cleaning up resources...');
-            Object.values(peerConnections.current).forEach((pc) => pc.close()); // Close peer connections
-            socket.emit('leave-room', { roomId }); // Notify the server
-            socket.off('seat-updated'); // Remove listeners
+            Object.values(peerConnections.current).forEach((pc) => pc.close());
+            socket.emit('leave-room', { roomId });
+            socket.off('seat-updated');
             socket.off('signal');
             socket.off('user-connected');
             socket.off('user-disconnected');
         };
     }, [roomId, socket]);
+    
     
 
     const handleUserConnected = (userId) => {
