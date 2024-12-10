@@ -48,14 +48,23 @@ function RoomPage() {
                 window.location.href = '/';
             });
 
-        return () => {
-            Object.values(peerConnections.current).forEach((pc) => pc.close());
-            socket.emit('leave-room', { roomId });
-            socket.off('seat-updated');
-            socket.off('signal');
-            socket.off('user-connected');
-            socket.off('user-disconnected');
-        };
+            return () => {
+                // Close peer connections
+                Object.values(peerConnections.current).forEach((pc) => pc.close());
+                
+                // Stop the local media stream
+                if (localStreamRef.current) {
+                    localStreamRef.current.getTracks().forEach((track) => track.stop());
+                    localStreamRef.current = null;
+                }
+            
+                // Emit leave-room and clean up socket listeners
+                socket.emit('leave-room', { roomId });
+                socket.off('seat-updated');
+                socket.off('signal');
+                socket.off('user-connected');
+                socket.off('user-disconnected');
+            };            
     }, [roomId, socket]);
 
     const handleUserConnected = (userId) => createPeerConnection(userId, true);
