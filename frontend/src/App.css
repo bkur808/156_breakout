@@ -104,11 +104,12 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  min-height: 100vh;
+  justify-content: flex-start;
+  height: 100vh; /* Full screen height */
   background-color: #f4f4f9;
   font-family: Arial, sans-serif;
-  padding: 20px;
+  padding: 10px;
+  box-sizing: border-box;
 }
 
 .room-page h1 {
@@ -124,12 +125,13 @@
   align-items: flex-start;
   width: 100%;
   max-width: 1200px;
-  margin-bottom: 20px;
+  height: 45%; /* Takes up 45% of the viewport height */
+  margin-bottom: 10px;
 }
 
 .main-video {
-  width: 50%;
-  height: 350px;
+  width: 60%; /* Instructor video occupies 60% of the top container width */
+  height: 100%; /* Fills the height of the top container */
   border: 2px solid black;
   border-radius: 10px;
   background-color: #000;
@@ -139,13 +141,14 @@
 }
 
 .chat-box {
-  width: 35%;
-  height: 400px;
+  width: 35%; /* Chat box occupies 35% of the top container width */
+  height: 100%; /* Fills the height of the top container */
   border: 2px solid #ccc;
   border-radius: 10px;
   background-color: white;
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
 }
 
 .chat-box h2 {
@@ -192,6 +195,7 @@
   padding: 10px;
   border: none;
   border-bottom-left-radius: 8px;
+  outline: none;
 }
 
 .chat-input button {
@@ -210,11 +214,13 @@
 /* Participant Grid */
 .seat-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); /* Responsive grid */
+  gap: 10px;
   width: 100%;
   max-width: 1200px;
-  margin-top: 20px;
+  height: 50%; /* Participant grid takes up 50% of the viewport height */
+  padding: 10px;
+  box-sizing: border-box;
 }
 
 .seat-box {
@@ -222,11 +228,11 @@
   justify-content: center;
   align-items: center;
   width: 100%;
-  height: 100px;
+  height: 100%;
   border: 2px solid black;
   border-radius: 10px;
   background-color: white;
-  cursor: pointer;
+  box-sizing: border-box;
 }
 
 .seat-box:hover {
@@ -245,17 +251,19 @@
   .top-container {
     flex-direction: column;
     align-items: center;
+    height: auto;
   }
 
   .main-video,
   .chat-box {
     width: 100%;
-    height: auto;
-    margin-bottom: 20px;
+    height: 200px;
+    margin-bottom: 10px;
   }
 
   .seat-grid {
     grid-template-columns: repeat(2, 1fr);
-    gap: 15px;
+    gap: 10px;
+    height: auto;
   }
 }
