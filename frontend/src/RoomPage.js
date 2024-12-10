@@ -1,13 +1,13 @@
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { SocketContext } from './App';
-import 'webrtc-adapter'; // used for compatability between different browsers
+import 'webrtc-adapter';
 
 function RoomPage() {
     const { roomId } = useParams();
     const socket = useContext(SocketContext);
-    const [participants, setParticipants] = useState(Array(8).fill(null)); // 10 seats
-    const [instructorId, setInstructorId] = useState(null); // Store instructor's socket ID
+    const [participants, setParticipants] = useState(Array(10).fill(null));
+    const [instructorId, setInstructorId] = useState(null);
     const localVideoRef = useRef(null);
     const peerConnections = useRef({});
     const localStreamRef = useRef(null);
@@ -19,15 +19,12 @@ function RoomPage() {
     useEffect(() => {
         console.log(`Joining room with ID: ${roomId}`);
         const storedPasscode = localStorage.getItem(`passcode-${roomId}`);
-        let isInstructor = false;
 
         fetch(`/api/validate-room?roomId=${roomId}&passcode=${storedPasscode || ''}`)
             .then((response) => response.json())
             .then((data) => {
-                setInstructorId(data.instructorId); // Save instructor ID
-                isInstructor = socket.id === data.instructorId;
-
-                socket.emit('join-room', { roomId, passcode: isInstructor ? storedPasscode : null });
+                setInstructorId(data.instructorId);
+                socket.emit('join-room', { roomId });
 
                 return navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             })
@@ -39,6 +36,11 @@ function RoomPage() {
                 socket.on('signal', handleSignal);
                 socket.on('user-connected', handleUserConnected);
                 socket.on('user-disconnected', handleUserDisconnected);
+
+                // Log signal messages into the chat
+                socket.on('signal-message', (signalMsg) => {
+                    addSignalMessageToChat(signalMsg);
+                });
             })
             .catch((err) => {
                 console.error('Error:', err.message);
@@ -58,16 +60,6 @@ function RoomPage() {
         };
     }, [roomId, socket]);
 
-    const handleUserConnected = (userId) => createPeerConnection(userId, true);
-
-    const handleUserDisconnected = (userId) => {
-        if (peerConnections.current[userId]) {
-            peerConnections.current[userId].close();
-            delete peerConnections.current[userId];
-        }
-        setParticipants((prev) => prev.map((seat) => (seat === userId ? null : seat)));
-    };
-
     const handleSignal = ({ userId, offer, answer, candidate }) => {
         const pc = peerConnections.current[userId];
         if (!pc) return;
@@ -84,6 +76,23 @@ function RoomPage() {
         } else if (candidate) {
             pc.addIceCandidate(new RTCIceCandidate(candidate));
         }
+
+        // Log signal messages into chat
+        addSignalMessageToChat(`Signal received from user ${userId}`);
+    };
+
+    const handleUserConnected = (userId) => {
+        createPeerConnection(userId, true);
+        addSignalMessageToChat(`User ${userId} connected.`);
+    };
+
+    const handleUserDisconnected = (userId) => {
+        if (peerConnections.current[userId]) {
+            peerConnections.current[userId].close();
+            delete peerConnections.current[userId];
+        }
+        setParticipants((prev) => prev.map((seat) => (seat === userId ? null : seat)));
+        addSignalMessageToChat(`User ${userId} disconnected.`);
     };
 
     const createPeerConnection = (userId, createOffer) => {
@@ -110,6 +119,10 @@ function RoomPage() {
         }
 
         peerConnections.current[userId] = pc;
+    };
+
+    const addSignalMessageToChat = (signalMsg) => {
+        setChatMessages((prev) => [...prev, { sender: "System", text: signalMsg }]);
     };
 
     const handleSendMessage = () => {
