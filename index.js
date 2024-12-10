@@ -62,7 +62,7 @@ app.post('/api/create-room', async (req, res) => {
             passcode: isProtected ? passcode : null,
             isProtected,
             instructorId,
-            participants: [instructorId, ...Array(10).fill(null)],
+            participants: [instructorId, ...Array(8).fill(null)],
         };
 
         await redis.set(roomKey, JSON.stringify(roomData), 'EX', 1800); // Set with 30 min expiry
@@ -127,7 +127,7 @@ io.on('connection', (socket) => {
         if (isInstructor) {
             console.log(`Instructor ${socket.id} joined room ${roomId}`);
         } else {
-            // Assign the user to the next available seat (1-10)
+            // Assign the user to the next available seat (1-8)
             const freeSeatIndex = parsedRoom.participants.findIndex((seat, index) => index > 0 && seat === null);
             if (freeSeatIndex !== -1) {
                 parsedRoom.participants[freeSeatIndex] = socket.id;
