@@ -6,7 +6,7 @@ import 'webrtc-adapter';
 function RoomPage() {
     const { roomId } = useParams();
     const socket = useContext(SocketContext);
-    const [participants, setParticipants] = useState(Array(10).fill(null));
+    const [participants, setParticipants] = useState(Array(8).fill(null));
     const [instructorId, setInstructorId] = useState(null);
     const localVideoRef = useRef(null);
     const peerConnections = useRef({});

@@ -144,6 +144,11 @@ io.on('connection', (socket) => {
         socket.join(roomId);
         io.to(roomId).emit('seat-updated', parsedRoom.participants);
         socket.emit('role-assigned', { role: isInstructor ? 'instructor' : 'student' });
+
+        io.to(roomID).emit(
+            'signal-message',
+            `User ${socket.id} joined room ${roomId} as ${isInstructor ? 'Instructor' : 'Student'}`
+        );
     });
 
 
@@ -174,6 +179,11 @@ io.on('connection', (socket) => {
         }
 
         console.log(`User disconnected: ${socket.id}`);
+        io.to(key.split(':')[1]).emit(
+            'signal-message',
+            `User ${socket.id} disconnected from room ${key.split(':')[1]}`
+        );
+        
     });
 
 
