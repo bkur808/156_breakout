@@ -62,7 +62,7 @@ app.post('/api/create-room', async (req, res) => {
             passcode: isProtected ? passcode : null,
             isProtected,
             instructorId,
-            participants: Array(10).fill(null),
+            participants: [instructorId, ...Array(10).fill(null)],
         };
 
         await redis.set(roomKey, JSON.stringify(roomData), 'EX', 1800); // Set with 30 min expiry
@@ -127,8 +127,8 @@ io.on('connection', (socket) => {
         if (isInstructor) {
             console.log(`Instructor ${socket.id} joined room ${roomId}`);
         } else {
-            // Assign the user to a free seat
-            const freeSeatIndex = parsedRoom.participants.findIndex((seat) => seat === null);
+            // Assign the user to the next available seat (1-10)
+            const freeSeatIndex = parsedRoom.participants.findIndex((seat, index) => index > 0 && seat === null);
             if (freeSeatIndex !== -1) {
                 parsedRoom.participants[freeSeatIndex] = socket.id;
                 await redis.set(roomKey, JSON.stringify(parsedRoom), 'EX', 1800);
@@ -146,6 +146,7 @@ io.on('connection', (socket) => {
         socket.emit('role-assigned', { role: isInstructor ? 'instructor' : 'student' });
     });
 
+
     // Disconnect handling
     socket.on('disconnect', async () => {
         const keys = await redis.keys('room:*');
@@ -153,23 +154,28 @@ io.on('connection', (socket) => {
         for (const key of keys) {
             const roomData = JSON.parse(await redis.get(key));
 
+            // Find and remove the disconnected user
             const seatIndex = roomData.participants.indexOf(socket.id);
             if (seatIndex !== -1) {
+                console.log(`User ${socket.id} disconnected from room ${key.split(':')[1]}`);
                 roomData.participants[seatIndex] = null;
+
+                // Update room data in Redis
                 await redis.set(key, JSON.stringify(roomData), 'EX', 1800);
                 io.to(key.split(':')[1]).emit('seat-updated', roomData.participants);
             }
 
-            // Optional: Remove the room if empty
+            // Check if the room is empty
             const hasParticipants = roomData.participants.some((seat) => seat !== null);
             if (!hasParticipants) {
-                await redis.del(key);
+                await redis.del(key); // Delete the room if empty
                 console.log(`Room ${key.split(':')[1]} deleted due to inactivity.`);
             }
         }
 
         console.log(`User disconnected: ${socket.id}`);
     });
+
 
 });
 
