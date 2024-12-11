@@ -189,6 +189,12 @@ function RoomPage() {
         }
     };
 
+    const handleKeyPress = (e) => {
+        if (e.key === "Enter") {
+            handleSendMessage();
+        }
+    };
+
     return (
         <div className="room-page">
             <h1>Room ID: {roomId}</h1>
@@ -222,6 +228,7 @@ function RoomPage() {
                             type="text"
                             value={message}
                             onChange={(e) => setMessage(e.target.value)}
+                            onKeyPress={handleKeyPress}
                             placeholder="Type a message..."
                         />
                         <button onClick={handleSendMessage}>Send</button>
