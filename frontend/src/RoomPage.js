@@ -11,14 +11,15 @@ function RoomPage() {
     const [instructorId, setInstructorId] = useState(null);
     const [mySocketId, setMySocketId] = useState(null);
 
-    const localVideoRef = useRef(null);
     const localStreamRef = useRef(null);
     const peerConnections = useRef({});
     const [chatMessages, setChatMessages] = useState([]);
     const [message, setMessage] = useState("");
 
+    const mainVideoStream = useRef(null); // Ref to hold the main instructor stream
+
     useEffect(() => {
-        let hasJoinedRoom = false; // Prevent duplicate joins
+        let hasJoinedRoom = false;
 
         const validateAndJoinRoom = async () => {
             console.log(`Joining room with ID: ${roomId}`);
@@ -31,7 +32,6 @@ function RoomPage() {
 
                 setInstructorId(data.instructorId);
 
-                // Emit join-room only once
                 if (!hasJoinedRoom) {
                     socket.emit('join-room', { roomId, passcode: storedPasscode });
                     setMySocketId(socket.id);
@@ -42,18 +42,13 @@ function RoomPage() {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 localStreamRef.current = stream;
 
-                // If instructor, display their stream in the main video
-                if (socket.id === data.instructorId && localVideoRef.current) {
-                    localVideoRef.current.srcObject = stream;
+                // If instructor, set main video stream
+                if (socket.id === data.instructorId) {
+                    mainVideoStream.current = stream;
                 }
 
                 // Socket event listeners
-                socket.on('seat-updated', (newParticipants) => {
-                    setParticipants((prev) => {
-                        if (JSON.stringify(prev) !== JSON.stringify(newParticipants)) return newParticipants;
-                        return prev;
-                    });
-                });
+                socket.on('seat-updated', setParticipants);
                 socket.on('user-connected', handleUserConnected);
                 socket.on('user-disconnected', handleUserDisconnected);
                 socket.on('signal', handleSignal);
@@ -84,22 +79,16 @@ function RoomPage() {
 
     const handleUserConnected = (userId) => {
         console.log(`User connected: ${userId}`);
-        const isInstructor = socket.id === instructorId;
-    
-        // Create a peer connection
         createPeerConnection(userId, true);
-    
-        // If instructor, ensure their video stream is shared
-        if (isInstructor && localStreamRef.current) {
+
+        // If instructor, share video tracks with connected users
+        if (socket.id === instructorId && localStreamRef.current) {
             const pc = peerConnections.current[userId];
-            localStreamRef.current.getTracks().forEach((track) => {
-                pc.addTrack(track, localStreamRef.current);
-            });
+            localStreamRef.current.getTracks().forEach((track) => pc.addTrack(track, localStreamRef.current));
         }
-    
+
         addSignalMessageToChat({ sender: "System", text: `User ${userId} connected.` });
     };
-    
 
     const handleUserDisconnected = (userId) => {
         console.log(`User disconnected: ${userId}`);
@@ -137,10 +126,6 @@ function RoomPage() {
         });
 
         peerConnections.current[userId] = pc;
-
-        if (localStreamRef.current) {
-            localStreamRef.current.getTracks().forEach((track) => pc.addTrack(track, localStreamRef.current));
-        }
 
         pc.ontrack = (event) => {
             console.log(`Received track from user ${userId}`);
@@ -199,7 +184,13 @@ function RoomPage() {
             <div className="top-container">
                 <div className="main-video">
                     <h2>Instructor</h2>
-                    <video ref={localVideoRef} className="video-feed" autoPlay playsInline muted />
+                    <video
+                        className="video-feed"
+                        autoPlay
+                        playsInline
+                        muted
+                        ref={(el) => el && (el.srcObject = mainVideoStream.current)}
+                    />
                     <p>{instructorId ? `Instructor ID: ${instructorId}` : "Loading..."}</p>
                 </div>
 
@@ -228,7 +219,12 @@ function RoomPage() {
                 {participants.map((participant, index) => (
                     <div key={index} className="seat-box">
                         {participant ? (
-                            <video ref={(el) => el && (el.srcObject = participant.stream)} className="video-feed" autoPlay playsInline />
+                            <video
+                                className="video-feed"
+                                autoPlay
+                                playsInline
+                                ref={(el) => el && (el.srcObject = participant.stream)}
+                            />
                         ) : (
                             <div className="empty-seat">Seat {index + 1}</div>
                         )}
