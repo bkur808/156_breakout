@@ -4,6 +4,7 @@ import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import HomePage from './HomePage'; // Main page for room creation
 import RoomPage from './RoomPage'; // Dynamic room page
 import { io } from 'socket.io-client';
+import { ThemeProvider } from './ThemeContext';
 
 // Socket Context for global use
 export const SocketContext = createContext();
@@ -17,6 +18,7 @@ const socket = io(
 
 function App() {
     return (
+        <ThemeProvider>
         <SocketContext.Provider value={socket}>
             <Router>
                 <Routes>
@@ -28,6 +30,7 @@ function App() {
                 </Routes>
             </Router>
         </SocketContext.Provider>
+        </ThemeProvider>
     );
 }
 

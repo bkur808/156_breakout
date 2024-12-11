@@ -1,6 +1,7 @@
 import React, { useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SocketContext } from './App';
+import { ThemeContext } from './ThemeContext';
 
 function HomePage() {
     const [roomId, setRoomId] = useState('');
@@ -8,6 +9,7 @@ function HomePage() {
     const [isProtected, setIsProtected] = useState(false);
     const navigate = useNavigate();
     const socket = useContext(SocketContext);
+    const { toggleTheme } = useContext(ThemeContext);
 
     // Use relative URL for API calls to work on both local and production environments
     const baseUrl = window.location.origin;
@@ -77,6 +79,9 @@ function HomePage() {
     return (
         <div className="homepage">
             <h1 className="homepage-title">Welcome to the Video App</h1>
+            <button onClick={toggleTheme} className="homepage-button">
+                Toggle Dark Mode
+            </button>
             <div className="homepage-input-group">
                 <input
                     type="text"

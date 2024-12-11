@@ -1,9 +1,11 @@
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { SocketContext } from './App';
+import { ThemeContext } from './ThemeContext';
 import 'webrtc-adapter';
 
 function RoomPage() {
+    const { toggleTheme } = useContext(ThemeContext);
     const { roomId } = useParams();
     const socket = useContext(SocketContext);
 
@@ -183,7 +185,7 @@ function RoomPage() {
             {mySocketId === instructorId && (
                 <button onClick={handleRoomClosed}>Close Room</button>
             )}
-
+            <button onClick={toggleTheme}>Toggle Theme</button>
             <div className="top-container">
                 <div className="main-video">
                     <h2>Instructor</h2>
