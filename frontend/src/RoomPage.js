@@ -104,6 +104,62 @@ function RoomPage() {
         shareInstructorStream();
     };
 
+    const createPeerConnection = (userId, createOffer) => {
+        console.log(`Creating peer connection for user: ${userId}, createOffer: ${createOffer}`);
+        if (peerConnections.current[userId]) {
+            console.log(`Peer connection already exists for user: ${userId}`);
+            return; // Prevent duplicate connections
+        }
+    
+        const pc = new RTCPeerConnection({
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { url: 'turn:192.168.56.1:3478', username: 'Ola', credential: 'CSci156P' }
+            ],
+        });
+    
+        console.log(`Peer connection created for user: ${userId}`);
+        peerConnections.current[userId] = pc;
+    
+        // Handle tracks received from remote peers
+        pc.ontrack = (event) => {
+            console.log(`Received track from user ${userId}:`, event.streams);
+            setParticipants((prev) => {
+                const updated = [...prev];
+                const seatIndex = updated.findIndex((seat) => seat === null);
+                if (seatIndex !== -1) {
+                    updated[seatIndex] = { id: userId, stream: event.streams[0] };
+                    console.log(`Assigned user ${userId} to seat ${seatIndex}`);
+                }
+                return updated;
+            });
+        };
+    
+        // Handle ICE candidates
+        pc.onicecandidate = (event) => {
+            if (event.candidate) {
+                console.log(`ICE candidate for user ${userId}:`, event.candidate);
+                socket.emit('signal', { roomId, userId, candidate: event.candidate });
+            }
+        };
+    
+        // If initiating the connection, create and send an offer
+        if (createOffer) {
+            console.log(`Creating offer for user: ${userId}`);
+            pc.createOffer()
+                .then((offer) => {
+                    console.log(`Offer created for user ${userId}:`, offer);
+                    return pc.setLocalDescription(offer);
+                })
+                .then(() => {
+                    socket.emit('signal', { roomId, userId, offer: pc.localDescription });
+                    console.log(`Sent offer to user: ${userId}`);
+                })
+                .catch((error) => console.error(`Error creating offer for ${userId}:`, error));
+        }
+    };
+    
+
     const shareInstructorStream = () => {
         console.log('Sharing instructor stream...');
         Object.keys(peerConnections.current).forEach((userId) => {
@@ -117,6 +173,29 @@ function RoomPage() {
             }
         });
     };
+
+     const createPeerConnection = (userId, createOffer) => {
+        if (peerConnections.current[userId]) return;
+
+        const pc = new RTCPeerConnection({
+            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { url: 'turn:192.168.56.1:3478', username: 'Ola', credential: 'CSci156P' }],
+        });
+
+        peerConnections.current[userId] = pc;
+
+        pc.ontrack = (event) => {
+            console.log(Received track from user ${userId});
+            setParticipants((prev) => {
+                const updated = [...prev];
+                const seatIndex = updated.findIndex((seat) => seat === null);
+                if (seatIndex !== -1) {
+                    updated[seatIndex] = { id: userId, stream: event.streams[0] };
+                }
+                return updated;
+            });
+        };
+
+
 
     const handleUserConnected = (userId, stream = null) => {
         console.log(`User connected: ${userId}`);
