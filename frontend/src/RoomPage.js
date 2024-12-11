@@ -18,40 +18,53 @@ function RoomPage() {
     const [message, setMessage] = useState("");
 
     useEffect(() => {
-        console.log(`Joining room with ID: ${roomId}`);
-        const storedPasscode = localStorage.getItem(`passcode-${roomId}`);
+        let hasJoinedRoom = false; // Prevents duplicate joins
 
-        fetch(`/api/validate-room?roomId=${roomId}&passcode=${storedPasscode || ''}`)
-            .then((response) => response.json())
-            .then((data) => {
+        const validateAndJoinRoom = async () => {
+            console.log(`Joining room with ID: ${roomId}`);
+            const storedPasscode = localStorage.getItem(`passcode-${roomId}`) || '';
+
+            try {
+                // Room validation
+                const response = await fetch(`/api/validate-room?roomId=${roomId}&passcode=${storedPasscode}`);
+                if (!response.ok) throw new Error('Room validation failed');
+                const data = await response.json();
+
                 setInstructorId(data.instructorId);
-                socket.emit('join-room', { roomId, passcode: storedPasscode });
-                setMySocketId(socket.id);
 
-                return navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            })
-            .then((stream) => {
+                // Emit join-room only once
+                if (!hasJoinedRoom) {
+                    socket.emit('join-room', { roomId, passcode: storedPasscode });
+                    setMySocketId(socket.id);
+                    hasJoinedRoom = true;
+                }
+
+                // Access user's media stream
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 localStreamRef.current = stream;
 
-                // If I'm the instructor, set my stream to the main video
-                if (socket.id === instructorId && localVideoRef.current) {
+                // If instructor, display their stream in the main video
+                if (data.instructorId === socket.id && localVideoRef.current) {
                     localVideoRef.current.srcObject = stream;
                 }
 
-                // Handle socket events
-                socket.on('seat-updated', updateParticipants);
+                // Socket event listeners
+                socket.on('seat-updated', setParticipants);
                 socket.on('user-connected', handleUserConnected);
                 socket.on('user-disconnected', handleUserDisconnected);
                 socket.on('signal', handleSignal);
                 socket.on('signal-message', addSignalMessageToChat);
                 socket.on('room-closed', handleRoomClosed);
-            })
-            .catch((err) => {
+            } catch (err) {
                 console.error('Error:', err.message);
                 window.location.href = '/';
-            });
+            }
+        };
+
+        validateAndJoinRoom();
 
         return () => {
+            // Cleanup connections and listeners
             Object.values(peerConnections.current).forEach((pc) => pc.close());
             if (localStreamRef.current) {
                 localStreamRef.current.getTracks().forEach((track) => track.stop());
@@ -64,16 +77,12 @@ function RoomPage() {
             socket.off('signal-message');
             socket.off('room-closed');
         };
-    }, [roomId, socket, instructorId]);
-
-    const updateParticipants = (updatedParticipants) => {
-        setParticipants(updatedParticipants);
-    };
+    }, [roomId, socket]);
 
     const handleUserConnected = (userId) => {
         console.log(`User connected: ${userId}`);
         createPeerConnection(userId, true);
-        addSignalMessageToChat(`User ${userId} connected.`);
+        addSignalMessageToChat({ sender: "System", text: `User ${userId} connected.` });
     };
 
     const handleUserDisconnected = (userId) => {
@@ -83,7 +92,7 @@ function RoomPage() {
             delete peerConnections.current[userId];
         }
         setParticipants((prev) => prev.map((p) => (p?.id === userId ? null : p)));
-        addSignalMessageToChat(`User ${userId} disconnected.`);
+        addSignalMessageToChat({ sender: "System", text: `User ${userId} disconnected.` });
     };
 
     const handleSignal = ({ userId, offer, answer, candidate }) => {
@@ -105,7 +114,7 @@ function RoomPage() {
     };
 
     const createPeerConnection = (userId, createOffer) => {
-        if (peerConnections.current[userId]) return; // Prevent duplicate connections
+        if (peerConnections.current[userId]) return; // Avoid duplicate connections
 
         const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
         peerConnections.current[userId] = pc;
@@ -162,13 +171,11 @@ function RoomPage() {
             )}
 
             <div className="top-container">
-                {/* Main video box for instructor */}
                 <div className="main-video">
                     <h2>Instructor</h2>
                     <video ref={localVideoRef} className="video-feed" autoPlay playsInline muted />
                 </div>
 
-                {/* Chat */}
                 <div className="chat-box">
                     <h2>Chat</h2>
                     <div className="chat-messages">
@@ -190,7 +197,6 @@ function RoomPage() {
                 </div>
             </div>
 
-            {/* Seat grid for participants */}
             <div className="seat-grid">
                 {participants.map((participant, index) => (
                     <div key={index} className="seat-box">

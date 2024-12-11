@@ -98,8 +98,13 @@ app.get('/api/validate-room', async (req, res) => {
 // Socket.IO connection
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
-
+    
     socket.on('join-room', async ({ roomId, passcode }) => {
+        if (socket.rooms.has(roomId)) {
+            console.log(`Socket ${socket.id} already joined room ${roomId}`);
+            return; // Prevent duplicate joins
+        }
+    
         const roomKey = `room:${roomId}`;
         const roomData = await redis.get(roomKey);
     
@@ -120,7 +125,6 @@ io.on('connection', (socket) => {
         if (isInstructor) {
             console.log(`Instructor ${socket.id} joined room ${roomId}`);
         } else {
-            // Prevent duplicate assignments
             const alreadyAssigned = parsedRoom.participants.includes(socket.id);
             if (!alreadyAssigned) {
                 const freeSeatIndex = parsedRoom.participants.findIndex((seat, index) => index > 0 && seat === null);
@@ -134,49 +138,41 @@ io.on('connection', (socket) => {
             }
         }
     
-        await redis.set(roomKey, JSON.stringify(parsedRoom), 'EX', 1800); // Update Redis
+        await redis.set(roomKey, JSON.stringify(parsedRoom), 'EX', 1800);
         socket.join(roomId);
-        
     
-        io.to(roomId).emit('seat-updated', parsedRoom.participants); // Send updated seats
+        io.to(roomId).emit('seat-updated', parsedRoom.participants);
         socket.emit('role-assigned', { role: isInstructor ? 'instructor' : 'student' });
-        io.to(roomId).emit(
-            'signal-message',
-            `User ${socket.id} joined room ${roomId} as ${isInstructor ? 'Instructor' : 'Student'}`
-        );
+        io.to(roomId).emit('signal-message', `User ${socket.id} joined room ${roomId}`);
         io.to(roomId).emit('user-connected', socket.id);
     });
     
-
     socket.on('disconnect', async () => {
-        const keys = await redis.keys('room:*');
-
-        for (const key of keys) {
-            const roomData = JSON.parse(await redis.get(key));
-
+        for (const roomId of socket.rooms) {
+            if (roomId === socket.id) continue; // Skip the socket's own room
+    
+            const roomKey = `room:${roomId}`;
+            const roomData = JSON.parse(await redis.get(roomKey));
+    
             const seatIndex = roomData.participants.indexOf(socket.id);
             if (seatIndex !== -1) {
                 roomData.participants[seatIndex] = null;
-
-                // Check if the instructor disconnected
+    
                 if (roomData.instructorId === socket.id) {
-                    console.log(`Instructor disconnected, closing room ${key.split(':')[1]}`);
-                    await redis.del(key); // Delete room
-                    io.to(key.split(':')[1]).emit('room-closed', { message: 'The instructor closed the room.' });
+                    console.log(`Instructor disconnected, closing room ${roomId}`);
+                    await redis.del(roomKey);
+                    io.to(roomId).emit('room-closed', { message: 'The instructor closed the room.' });
                     return;
                 }
-
-                await redis.set(key, JSON.stringify(roomData), 'EX', 1800);
-                io.to(key.split(':')[1]).emit('seat-updated', roomData.participants);
-                io.to(key.split(':')[1]).emit(
-                    'signal-message',
-                    `User ${socket.id} disconnected from room ${key.split(':')[1]}`
-                );
+    
+                await redis.set(roomKey, JSON.stringify(roomData), 'EX', 1800);
+                io.to(roomId).emit('seat-updated', roomData.participants);
+                io.to(roomId).emit('signal-message', `User ${socket.id} disconnected`);
             }
         }
-
+    
         console.log(`User disconnected: ${socket.id}`);
-    });
+    });    
 
     // Chat (signal-message) logic
     socket.on('signal-message', (message) => {
