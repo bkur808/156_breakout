@@ -209,8 +209,19 @@ function RoomPage() {
                         className="video-feed"
                         autoPlay
                         playsInline
-                        muted
-                        ref={(el) => el && (el.srcObject = mainVideoStream.current)}
+                        muted={socket.id === instructorId} // Mute only on instructor's side
+                        ref={(el) => {
+                            if (el) {
+                                // If the current user is the instructor, display the local stream
+                                if (socket.id === instructorId && localStreamRef.current) {
+                                    el.srcObject = localStreamRef.current;
+                                } 
+                                // If not, display the instructor's main video stream
+                                else if (mainVideoStream.current) {
+                                    el.srcObject = mainVideoStream.current;
+                                }
+                            }
+                        }}
                     />
                 </div>
 
