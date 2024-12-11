@@ -18,14 +18,13 @@ function RoomPage() {
     const [message, setMessage] = useState("");
 
     useEffect(() => {
-        let hasJoinedRoom = false; // Prevents duplicate joins
+        let hasJoinedRoom = false; // Prevent duplicate joins
 
         const validateAndJoinRoom = async () => {
             console.log(`Joining room with ID: ${roomId}`);
             const storedPasscode = localStorage.getItem(`passcode-${roomId}`) || '';
 
             try {
-                // Room validation
                 const response = await fetch(`/api/validate-room?roomId=${roomId}&passcode=${storedPasscode}`);
                 if (!response.ok) throw new Error('Room validation failed');
                 const data = await response.json();
@@ -49,7 +48,12 @@ function RoomPage() {
                 }
 
                 // Socket event listeners
-                socket.on('seat-updated', setParticipants);
+                socket.on('seat-updated', (newParticipants) => {
+                    setParticipants((prev) => {
+                        if (JSON.stringify(prev) !== JSON.stringify(newParticipants)) return newParticipants;
+                        return prev;
+                    });
+                });
                 socket.on('user-connected', handleUserConnected);
                 socket.on('user-disconnected', handleUserDisconnected);
                 socket.on('signal', handleSignal);
@@ -64,7 +68,6 @@ function RoomPage() {
         validateAndJoinRoom();
 
         return () => {
-            // Cleanup connections and listeners
             Object.values(peerConnections.current).forEach((pc) => pc.close());
             if (localStreamRef.current) {
                 localStreamRef.current.getTracks().forEach((track) => track.stop());
@@ -114,20 +117,18 @@ function RoomPage() {
     };
 
     const createPeerConnection = (userId, createOffer) => {
-        if (peerConnections.current[userId]) return; // Prevent duplicate connections
+        if (peerConnections.current[userId]) return;
 
-        const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, {url: 'turn:192.168.56.1:3478', username: 'Ola', credential: 'CSci156P'}] });
+        const pc = new RTCPeerConnection({
+            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { url: 'turn:192.168.56.1:3478', username: 'Ola', credential: 'CSci156P' }],
+        });
 
         peerConnections.current[userId] = pc;
 
-        // Add local tracks to the peer connection
         if (localStreamRef.current) {
-            localStreamRef.current.getTracks().forEach((track) => {
-                pc.addTrack(track, localStreamRef.current);
-            });
+            localStreamRef.current.getTracks().forEach((track) => pc.addTrack(track, localStreamRef.current));
         }
 
-        // Handle remote tracks and update participant grid
         pc.ontrack = (event) => {
             console.log(`Received track from user ${userId}`);
             setParticipants((prev) => {
@@ -140,14 +141,12 @@ function RoomPage() {
             });
         };
 
-        // Handle ICE candidates
         pc.onicecandidate = (event) => {
             if (event.candidate) {
                 socket.emit('signal', { roomId, userId, candidate: event.candidate });
             }
         };
 
-        // If initiating the connection, create and send an offer
         if (createOffer) {
             pc.createOffer()
                 .then((offer) => pc.setLocalDescription(offer))
@@ -158,7 +157,6 @@ function RoomPage() {
     };
 
     const addSignalMessageToChat = (data) => {
-        // Avoid displaying messages sent by the current user's socket ID
         if (data.sender !== socket.id) {
             setChatMessages((prev) => [...prev, { sender: data.sender, text: data.text }]);
         }
@@ -189,6 +187,7 @@ function RoomPage() {
                 <div className="main-video">
                     <h2>Instructor</h2>
                     <video ref={localVideoRef} className="video-feed" autoPlay playsInline muted />
+                    <p>{instructorId ? `Instructor ID: ${instructorId}` : "Loading..."}</p>
                 </div>
 
                 <div className="chat-box">
@@ -216,12 +215,7 @@ function RoomPage() {
                 {participants.map((participant, index) => (
                     <div key={index} className="seat-box">
                         {participant ? (
-                            <video
-                                ref={(el) => el && (el.srcObject = participant.stream)}
-                                className="video-feed"
-                                autoPlay
-                                playsInline
-                            />
+                            <video ref={(el) => el && (el.srcObject = participant.stream)} className="video-feed" autoPlay playsInline />
                         ) : (
                             <div className="empty-seat">Seat {index + 1}</div>
                         )}
