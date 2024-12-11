@@ -20,50 +20,34 @@ function RoomPage() {
 
     useEffect(() => {
         let hasJoinedRoom = false;
-        console.log(`useEffect triggered. Room ID: ${roomId}`);
 
         const validateAndJoinRoom = async () => {
-            console.log(`Validating room with ID: ${roomId}`);
+            console.log(`Joining room with ID: ${roomId}`);
             const storedPasscode = localStorage.getItem(`passcode-${roomId}`) || '';
-            console.log(`Stored passcode: ${storedPasscode}`);
 
             try {
-                console.log('Sending room validation request...');
                 const response = await fetch(`/api/validate-room?roomId=${roomId}&passcode=${storedPasscode}`);
-                console.log(`Response status: ${response.status}`);
                 if (!response.ok) throw new Error('Room validation failed');
-
                 const data = await response.json();
-                console.log('Room validation successful:', data);
 
                 setInstructorId(data.instructorId);
 
                 if (!hasJoinedRoom) {
-                    console.log('Emitting "join-room" event...');
                     socket.emit('join-room', { roomId, passcode: storedPasscode });
                     setMySocketId(socket.id);
                     hasJoinedRoom = true;
                 }
 
-                console.log('Requesting user media...');
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                console.log('User media stream obtained:', stream);
-
                 localStreamRef.current = stream;
 
                 if (socket.id === data.instructorId) {
-                    console.log('User is instructor. Connecting instructor...');
                     handleInstructorConnected();
                 } else {
-                    console.log('User is participant. Connecting user...');
                     handleUserConnected(socket.id, stream);
                 }
 
-                console.log('Setting up socket listeners...');
-                socket.on('seat-updated', (data) => {
-                    console.log('Received "seat-updated" event:', data);
-                    setParticipants(data);
-                });
+                socket.on('seat-updated', setParticipants);
                 socket.on('user-connected', handleUserConnected);
                 socket.on('user-disconnected', handleUserDisconnected);
                 socket.on('signal', handleSignal);
@@ -78,16 +62,10 @@ function RoomPage() {
         validateAndJoinRoom();
 
         return () => {
-            console.log('Cleaning up resources...');
-            Object.values(peerConnections.current).forEach((pc) => {
-                console.log('Closing peer connection:', pc);
-                pc.close();
-            });
+            Object.values(peerConnections.current).forEach((pc) => pc.close());
             if (localStreamRef.current) {
-                console.log('Stopping local media tracks...');
                 localStreamRef.current.getTracks().forEach((track) => track.stop());
             }
-            console.log('Emitting "leave-room" event...');
             socket.emit('leave-room', { roomId });
             socket.off('seat-updated');
             socket.off('user-connected');
@@ -104,98 +82,16 @@ function RoomPage() {
         shareInstructorStream();
     };
 
-    const createPeerConnection = (userId, createOffer) => {
-        console.log(`Creating peer connection for user: ${userId}, createOffer: ${createOffer}`);
-        if (peerConnections.current[userId]) {
-            console.log(`Peer connection already exists for user: ${userId}`);
-            return; // Prevent duplicate connections
-        }
-    
-        const pc = new RTCPeerConnection({
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { url: 'turn:192.168.56.1:3478', username: 'Ola', credential: 'CSci156P' }
-            ],
-        });
-    
-        console.log(`Peer connection created for user: ${userId}`);
-        peerConnections.current[userId] = pc;
-    
-        // Handle tracks received from remote peers
-        pc.ontrack = (event) => {
-            console.log(`Received track from user ${userId}:`, event.streams);
-            setParticipants((prev) => {
-                const updated = [...prev];
-                const seatIndex = updated.findIndex((seat) => seat === null);
-                if (seatIndex !== -1) {
-                    updated[seatIndex] = { id: userId, stream: event.streams[0] };
-                    console.log(`Assigned user ${userId} to seat ${seatIndex}`);
-                }
-                return updated;
-            });
-        };
-    
-        // Handle ICE candidates
-        pc.onicecandidate = (event) => {
-            if (event.candidate) {
-                console.log(`ICE candidate for user ${userId}:`, event.candidate);
-                socket.emit('signal', { roomId, userId, candidate: event.candidate });
-            }
-        };
-    
-        // If initiating the connection, create and send an offer
-        if (createOffer) {
-            console.log(`Creating offer for user: ${userId}`);
-            pc.createOffer()
-                .then((offer) => {
-                    console.log(`Offer created for user ${userId}:`, offer);
-                    return pc.setLocalDescription(offer);
-                })
-                .then(() => {
-                    socket.emit('signal', { roomId, userId, offer: pc.localDescription });
-                    console.log(`Sent offer to user: ${userId}`);
-                })
-                .catch((error) => console.error(`Error creating offer for ${userId}:`, error));
-        }
-    };
-    
-
     const shareInstructorStream = () => {
-        console.log('Sharing instructor stream...');
         Object.keys(peerConnections.current).forEach((userId) => {
             const pc = peerConnections.current[userId];
-            console.log(`Sharing stream with user: ${userId}`);
             if (localStreamRef.current) {
                 localStreamRef.current.getTracks().forEach((track) => {
-                    console.log('Adding track to peer connection:', track);
                     pc.addTrack(track, localStreamRef.current);
                 });
             }
         });
     };
-
-     const createPeerConnection = (userId, createOffer) => {
-        if (peerConnections.current[userId]) return;
-
-        const pc = new RTCPeerConnection({
-            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { url: 'turn:192.168.56.1:3478', username: 'Ola', credential: 'CSci156P' }],
-        });
-
-        peerConnections.current[userId] = pc;
-
-        pc.ontrack = (event) => {
-            console.log(Received track from user ${userId});
-            setParticipants((prev) => {
-                const updated = [...prev];
-                const seatIndex = updated.findIndex((seat) => seat === null);
-                if (seatIndex !== -1) {
-                    updated[seatIndex] = { id: userId, stream: event.streams[0] };
-                }
-                return updated;
-            });
-        };
-
-
 
     const handleUserConnected = (userId, stream = null) => {
         console.log(`User connected: ${userId}`);
@@ -203,7 +99,6 @@ function RoomPage() {
 
         if (stream) {
             const pc = peerConnections.current[userId];
-            console.log(`Adding stream tracks for user ${userId}`);
             stream.getTracks().forEach((track) => pc.addTrack(track, stream));
         }
 
@@ -213,7 +108,6 @@ function RoomPage() {
     const handleUserDisconnected = (userId) => {
         console.log(`User disconnected: ${userId}`);
         if (peerConnections.current[userId]) {
-            console.log(`Closing peer connection for user ${userId}`);
             peerConnections.current[userId].close();
             delete peerConnections.current[userId];
         }
@@ -222,44 +116,72 @@ function RoomPage() {
     };
 
     const handleSignal = ({ userId, offer, answer, candidate }) => {
-        console.log('Signal received:', { userId, offer, answer, candidate });
         const pc = peerConnections.current[userId];
         if (!pc) return;
 
         if (offer) {
-            console.log('Received offer, creating answer...');
             pc.setRemoteDescription(new RTCSessionDescription(offer))
                 .then(() => pc.createAnswer())
                 .then((answer) => {
-                    console.log('Sending answer...');
                     pc.setLocalDescription(answer);
                     socket.emit('signal', { roomId, userId, answer: pc.localDescription });
                 });
         } else if (answer) {
-            console.log('Received answer, setting remote description...');
             pc.setRemoteDescription(new RTCSessionDescription(answer));
         } else if (candidate) {
-            console.log('Adding ICE candidate:', candidate);
             pc.addIceCandidate(new RTCIceCandidate(candidate));
         }
     };
 
+    const createPeerConnection = (userId, createOffer) => {
+        if (peerConnections.current[userId]) return;
+
+        const pc = new RTCPeerConnection({
+            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { url: 'turn:192.168.56.1:3478', username: 'Ola', credential: 'CSci156P' }],
+        });
+
+        peerConnections.current[userId] = pc;
+
+        pc.ontrack = (event) => {
+            console.log(`Received track from user ${userId}`);
+            setParticipants((prev) => {
+                const updated = [...prev];
+                const seatIndex = updated.findIndex((seat) => seat === null);
+                if (seatIndex !== -1) {
+                    updated[seatIndex] = { id: userId, stream: event.streams[0] };
+                }
+                return updated;
+            });
+        };
+
+        pc.onicecandidate = (event) => {
+            if (event.candidate) {
+                socket.emit('signal', { roomId, userId, candidate: event.candidate });
+            }
+        };
+
+        if (createOffer) {
+            pc.createOffer()
+                .then((offer) => pc.setLocalDescription(offer))
+                .then(() => {
+                    socket.emit('signal', { roomId, userId, offer: pc.localDescription });
+                });
+        }
+    };
+
     const addSignalMessageToChat = (data) => {
-        console.log('Chat message received:', data);
         if (data.sender !== socket.id) {
             setChatMessages((prev) => [...prev, { sender: data.sender, text: data.text }]);
         }
     };
 
     const handleRoomClosed = () => {
-        console.log('Room closed by instructor');
         addSignalMessageToChat({ sender: "System", text: "The room has been closed by the instructor." });
         alert("Room closed by instructor. Redirecting to homepage.");
         window.location.href = '/';
     };
 
     const handleSendMessage = () => {
-        console.log('Sending chat message:', message);
         if (message.trim()) {
             socket.emit('signal-message', message);
             setChatMessages((prev) => [...prev, { sender: "You", text: message }]);
@@ -287,12 +209,15 @@ function RoomPage() {
                         className="video-feed"
                         autoPlay
                         playsInline
-                        muted={socket.id === instructorId}
+                        muted={socket.id === instructorId} // Mute only on instructor's side
                         ref={(el) => {
                             if (el) {
+                                // If the current user is the instructor, display the local stream
                                 if (socket.id === instructorId && localStreamRef.current) {
                                     el.srcObject = localStreamRef.current;
-                                } else if (mainVideoStream.current) {
+                                } 
+                                // If not, display the instructor's main video stream
+                                else if (mainVideoStream.current) {
                                     el.srcObject = mainVideoStream.current;
                                 }
                             }
