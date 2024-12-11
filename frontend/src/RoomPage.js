@@ -116,7 +116,8 @@ function RoomPage() {
     const createPeerConnection = (userId, createOffer) => {
         if (peerConnections.current[userId]) return; // Prevent duplicate connections
 
-        const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+        const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, {url: 'turn:192.168.56.1:3478', username: 'Ola', credential: 'CSci156P'}] });
+
         peerConnections.current[userId] = pc;
 
         // Add local tracks to the peer connection
