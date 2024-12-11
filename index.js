@@ -102,43 +102,51 @@ io.on('connection', (socket) => {
     socket.on('join-room', async ({ roomId, passcode }) => {
         const roomKey = `room:${roomId}`;
         const roomData = await redis.get(roomKey);
-
+    
         if (!roomData) {
             socket.emit('error', 'Room does not exist.');
             return;
         }
-
+    
         const parsedRoom = JSON.parse(roomData);
-
+    
         if (parsedRoom.isProtected && parsedRoom.passcode !== passcode) {
             socket.emit('error', 'Incorrect passcode.');
             return;
         }
-
+    
         const isInstructor = parsedRoom.instructorId === socket.id;
-
+    
         if (isInstructor) {
             console.log(`Instructor ${socket.id} joined room ${roomId}`);
         } else {
-            const freeSeatIndex = parsedRoom.participants.findIndex((seat, index) => index > 0 && seat === null);
-            if (freeSeatIndex !== -1) {
-                parsedRoom.participants[freeSeatIndex] = socket.id;
-                await redis.set(roomKey, JSON.stringify(parsedRoom), 'EX', 1800);
-                console.log(`User ${socket.id} assigned to seat ${freeSeatIndex} in room ${roomId}`);
-            } else {
-                socket.emit('error', 'No seats available in this room.');
-                return;
+            // Prevent duplicate assignments
+            const alreadyAssigned = parsedRoom.participants.includes(socket.id);
+            if (!alreadyAssigned) {
+                const freeSeatIndex = parsedRoom.participants.findIndex((seat, index) => index > 0 && seat === null);
+                if (freeSeatIndex !== -1) {
+                    parsedRoom.participants[freeSeatIndex] = socket.id;
+                    console.log(`User ${socket.id} assigned to seat ${freeSeatIndex} in room ${roomId}`);
+                } else {
+                    socket.emit('error', 'No seats available in this room.');
+                    return;
+                }
             }
         }
-
+    
+        await redis.set(roomKey, JSON.stringify(parsedRoom), 'EX', 1800); // Update Redis
         socket.join(roomId);
-        io.to(roomId).emit('seat-updated', parsedRoom.participants);
+        
+    
+        io.to(roomId).emit('seat-updated', parsedRoom.participants); // Send updated seats
         socket.emit('role-assigned', { role: isInstructor ? 'instructor' : 'student' });
         io.to(roomId).emit(
             'signal-message',
             `User ${socket.id} joined room ${roomId} as ${isInstructor ? 'Instructor' : 'Student'}`
         );
+        io.to(roomId).emit('user-connected', socket.id);
     });
+    
 
     socket.on('disconnect', async () => {
         const keys = await redis.keys('room:*');
@@ -168,6 +176,15 @@ io.on('connection', (socket) => {
         }
 
         console.log(`User disconnected: ${socket.id}`);
+    });
+
+    // Chat (signal-message) logic
+    socket.on('signal-message', (message) => {
+        const roomId = Array.from(socket.rooms).find((room) => room !== socket.id); // Find the room the socket is in
+        if (roomId) {
+            io.to(roomId).emit('signal-message', { sender: socket.id, text: message });
+            console.log(`Message sent from ${socket.id} to room ${roomId}: ${message}`);
+        }
     });
 });
 

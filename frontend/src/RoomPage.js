@@ -7,15 +7,13 @@ function RoomPage() {
     const { roomId } = useParams();
     const socket = useContext(SocketContext);
 
-    const [participants, setParticipants] = useState(Array(8).fill(null)); // Holds participant streams
+    const [participants, setParticipants] = useState(Array(8).fill(null));
     const [instructorId, setInstructorId] = useState(null);
     const [mySocketId, setMySocketId] = useState(null);
 
-    const localVideoRef = useRef(null); // Instructor's video
-    const peerConnections = useRef({});
+    const localVideoRef = useRef(null);
     const localStreamRef = useRef(null);
-
-    // Chat State
+    const peerConnections = useRef({});
     const [chatMessages, setChatMessages] = useState([]);
     const [message, setMessage] = useState("");
 
@@ -27,7 +25,7 @@ function RoomPage() {
             .then((response) => response.json())
             .then((data) => {
                 setInstructorId(data.instructorId);
-                socket.emit('join-room', { roomId });
+                socket.emit('join-room', { roomId, passcode: storedPasscode });
                 setMySocketId(socket.id);
 
                 return navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -35,18 +33,16 @@ function RoomPage() {
             .then((stream) => {
                 localStreamRef.current = stream;
 
-                // If I'm the instructor, set my video stream to the main feed
+                // If I'm the instructor, set my stream to the main video
                 if (socket.id === instructorId && localVideoRef.current) {
                     localVideoRef.current.srcObject = stream;
                 }
 
                 // Handle socket events
                 socket.on('seat-updated', updateParticipants);
-                socket.on('signal', handleSignal);
                 socket.on('user-connected', handleUserConnected);
                 socket.on('user-disconnected', handleUserDisconnected);
-
-                // Chat updates
+                socket.on('signal', handleSignal);
                 socket.on('signal-message', addSignalMessageToChat);
                 socket.on('room-closed', handleRoomClosed);
             })
@@ -62,9 +58,9 @@ function RoomPage() {
             }
             socket.emit('leave-room', { roomId });
             socket.off('seat-updated');
-            socket.off('signal');
             socket.off('user-connected');
             socket.off('user-disconnected');
+            socket.off('signal');
             socket.off('signal-message');
             socket.off('room-closed');
         };
@@ -75,16 +71,18 @@ function RoomPage() {
     };
 
     const handleUserConnected = (userId) => {
+        console.log(`User connected: ${userId}`);
         createPeerConnection(userId, true);
         addSignalMessageToChat(`User ${userId} connected.`);
     };
 
     const handleUserDisconnected = (userId) => {
+        console.log(`User disconnected: ${userId}`);
         if (peerConnections.current[userId]) {
             peerConnections.current[userId].close();
             delete peerConnections.current[userId];
         }
-        setParticipants((prev) => prev.filter((p) => p.id !== userId));
+        setParticipants((prev) => prev.map((p) => (p?.id === userId ? null : p)));
         addSignalMessageToChat(`User ${userId} disconnected.`);
     };
 
@@ -107,10 +105,18 @@ function RoomPage() {
     };
 
     const createPeerConnection = (userId, createOffer) => {
+        if (peerConnections.current[userId]) return; // Prevent duplicate connections
+
         const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
         peerConnections.current[userId] = pc;
 
         localStreamRef.current.getTracks().forEach((track) => pc.addTrack(track, localStreamRef.current));
+
+        pc.onicecandidate = (event) => {
+            if (event.candidate) {
+                socket.emit('signal', { roomId, userId, candidate: event.candidate });
+            }
+        };
 
         pc.ontrack = (event) => {
             setParticipants((prev) => {
@@ -122,7 +128,6 @@ function RoomPage() {
                 return updated;
             });
         };
-        
 
         if (createOffer) {
             pc.createOffer()
@@ -131,34 +136,29 @@ function RoomPage() {
         }
     };
 
-    const addSignalMessageToChat = (signalMsg) => {
-        setChatMessages((prev) => [...prev, { sender: "System", text: signalMsg }]);
+    const addSignalMessageToChat = (data) => {
+        setChatMessages((prev) => [...prev, { sender: data.sender, text: data.text }]);
     };
 
     const handleRoomClosed = () => {
-        addSignalMessageToChat("The room has been closed by the instructor.");
+        addSignalMessageToChat({ sender: "System", text: "The room has been closed by the instructor." });
         alert("Room closed by instructor. Redirecting to homepage.");
         window.location.href = '/';
     };
 
-    const closeRoom = async () => {
-        try {
-            await fetch('/api/delete-room', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ roomId }),
-            });
-            socket.emit('room-closed', { message: 'Room has been closed by the instructor.' });
-        } catch (error) {
-            console.error('Error closing the room:', error);
+    const handleSendMessage = () => {
+        if (message.trim()) {
+            socket.emit('signal-message', message);
+            setChatMessages((prev) => [...prev, { sender: "You", text: message }]);
+            setMessage("");
         }
     };
 
     return (
         <div className="room-page">
             <h1>Room ID: {roomId}</h1>
-            {socket.id === instructorId && (
-                <button onClick={closeRoom}>Close Room</button>
+            {mySocketId === instructorId && (
+                <button onClick={handleRoomClosed}>Close Room</button>
             )}
 
             <div className="top-container">
@@ -185,7 +185,7 @@ function RoomPage() {
                             onChange={(e) => setMessage(e.target.value)}
                             placeholder="Type a message..."
                         />
-                        <button onClick={() => addSignalMessageToChat(message)}>Send</button>
+                        <button onClick={handleSendMessage}>Send</button>
                     </div>
                 </div>
             </div>
