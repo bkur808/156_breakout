@@ -44,7 +44,7 @@ function RoomPage() {
                 localStreamRef.current = stream;
 
                 // If instructor, display their stream in the main video
-                if (data.instructorId === socket.id && localVideoRef.current) {
+                if (socket.id === data.instructorId && localVideoRef.current) {
                     localVideoRef.current.srcObject = stream;
                 }
 
@@ -115,18 +115,18 @@ function RoomPage() {
 
     const createPeerConnection = (userId, createOffer) => {
         if (peerConnections.current[userId]) return; // Prevent duplicate connections
-    
+
         const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
         peerConnections.current[userId] = pc;
-    
-        // Add local video and audio tracks to the peer connection
+
+        // Add local tracks to the peer connection
         if (localStreamRef.current) {
             localStreamRef.current.getTracks().forEach((track) => {
                 pc.addTrack(track, localStreamRef.current);
             });
         }
-    
-        // Handle incoming remote tracks
+
+        // Handle remote tracks and update participant grid
         pc.ontrack = (event) => {
             console.log(`Received track from user ${userId}`);
             setParticipants((prev) => {
@@ -138,14 +138,14 @@ function RoomPage() {
                 return updated;
             });
         };
-    
+
         // Handle ICE candidates
         pc.onicecandidate = (event) => {
             if (event.candidate) {
                 socket.emit('signal', { roomId, userId, candidate: event.candidate });
             }
         };
-    
+
         // If initiating the connection, create and send an offer
         if (createOffer) {
             pc.createOffer()
@@ -155,7 +155,6 @@ function RoomPage() {
                 });
         }
     };
-    
 
     const addSignalMessageToChat = (data) => {
         // Avoid displaying messages sent by the current user's socket ID
@@ -163,7 +162,6 @@ function RoomPage() {
             setChatMessages((prev) => [...prev, { sender: data.sender, text: data.text }]);
         }
     };
-    
 
     const handleRoomClosed = () => {
         addSignalMessageToChat({ sender: "System", text: "The room has been closed by the instructor." });
