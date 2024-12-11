@@ -84,9 +84,22 @@ function RoomPage() {
 
     const handleUserConnected = (userId) => {
         console.log(`User connected: ${userId}`);
+        const isInstructor = socket.id === instructorId;
+    
+        // Create a peer connection
         createPeerConnection(userId, true);
+    
+        // If instructor, ensure their video stream is shared
+        if (isInstructor && localStreamRef.current) {
+            const pc = peerConnections.current[userId];
+            localStreamRef.current.getTracks().forEach((track) => {
+                pc.addTrack(track, localStreamRef.current);
+            });
+        }
+    
         addSignalMessageToChat({ sender: "System", text: `User ${userId} connected.` });
     };
+    
 
     const handleUserDisconnected = (userId) => {
         console.log(`User disconnected: ${userId}`);
