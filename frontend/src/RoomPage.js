@@ -6,13 +6,21 @@ import 'webrtc-adapter';
 function RoomPage() {
     const { roomId } = useParams();
     const socket = useContext(SocketContext);
-    const [participants, setParticipants] = useState([]); // Array to hold participant video streams
+
+    const [participants, setParticipants] = useState([]); // Holds participant streams
     const [instructorId, setInstructorId] = useState(null);
-    const localVideoRef = useRef(null);
+    const [mySocketId, setMySocketId] = useState(null);
+
+    const localVideoRef = useRef(null); // Instructor's video
     const peerConnections = useRef({});
     const localStreamRef = useRef(null);
 
+    // Chat State
+    const [chatMessages, setChatMessages] = useState([]);
+    const [message, setMessage] = useState("");
+
     useEffect(() => {
+        console.log(`Joining room with ID: ${roomId}`);
         const storedPasscode = localStorage.getItem(`passcode-${roomId}`);
 
         fetch(`/api/validate-room?roomId=${roomId}&passcode=${storedPasscode || ''}`)
@@ -20,19 +28,27 @@ function RoomPage() {
             .then((data) => {
                 setInstructorId(data.instructorId);
                 socket.emit('join-room', { roomId });
+                setMySocketId(socket.id);
 
                 return navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             })
             .then((stream) => {
                 localStreamRef.current = stream;
 
-                // Instructor's stream in the main video feed
-                if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+                // If I'm the instructor, set my video stream to the main feed
+                if (socket.id === instructorId && localVideoRef.current) {
+                    localVideoRef.current.srcObject = stream;
+                }
 
-                socket.on('seat-updated', handleSeatUpdated);
+                // Handle socket events
+                socket.on('seat-updated', updateParticipants);
                 socket.on('signal', handleSignal);
                 socket.on('user-connected', handleUserConnected);
                 socket.on('user-disconnected', handleUserDisconnected);
+
+                // Chat updates
+                socket.on('signal-message', addSignalMessageToChat);
+                socket.on('room-closed', handleRoomClosed);
             })
             .catch((err) => {
                 console.error('Error:', err.message);
@@ -45,15 +61,22 @@ function RoomPage() {
                 localStreamRef.current.getTracks().forEach((track) => track.stop());
             }
             socket.emit('leave-room', { roomId });
+            socket.off('seat-updated');
+            socket.off('signal');
+            socket.off('user-connected');
+            socket.off('user-disconnected');
+            socket.off('signal-message');
+            socket.off('room-closed');
         };
-    }, [roomId, socket]);
+    }, [roomId, socket, instructorId]);
 
-    const handleSeatUpdated = (updatedParticipants) => {
+    const updateParticipants = (updatedParticipants) => {
         setParticipants(updatedParticipants);
     };
 
     const handleUserConnected = (userId) => {
         createPeerConnection(userId, true);
+        addSignalMessageToChat(`User ${userId} connected.`);
     };
 
     const handleUserDisconnected = (userId) => {
@@ -62,6 +85,7 @@ function RoomPage() {
             delete peerConnections.current[userId];
         }
         setParticipants((prev) => prev.filter((p) => p.id !== userId));
+        addSignalMessageToChat(`User ${userId} disconnected.`);
     };
 
     const handleSignal = ({ userId, offer, answer, candidate }) => {
@@ -99,21 +123,69 @@ function RoomPage() {
         }
     };
 
+    const addSignalMessageToChat = (signalMsg) => {
+        setChatMessages((prev) => [...prev, { sender: "System", text: signalMsg }]);
+    };
+
+    const handleRoomClosed = () => {
+        addSignalMessageToChat("The room has been closed by the instructor.");
+        alert("Room closed by instructor. Redirecting to homepage.");
+        window.location.href = '/';
+    };
+
+    const closeRoom = async () => {
+        try {
+            await fetch('/api/delete-room', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ roomId }),
+            });
+            socket.emit('room-closed', { message: 'Room has been closed by the instructor.' });
+        } catch (error) {
+            console.error('Error closing the room:', error);
+        }
+    };
+
     return (
         <div className="room-page">
             <h1>Room ID: {roomId}</h1>
+            {socket.id === instructorId && (
+                <button onClick={closeRoom}>Close Room</button>
+            )}
 
-            {/* Main Video Feed for Instructor */}
-            <div className="main-video">
-                <h2>Instructor</h2>
-                <video ref={localVideoRef} className="video-feed" autoPlay playsInline muted />
+            <div className="top-container">
+                {/* Main video box for instructor */}
+                <div className="main-video">
+                    <h2>Instructor</h2>
+                    <video ref={localVideoRef} className="video-feed" autoPlay playsInline muted />
+                </div>
+
+                {/* Chat */}
+                <div className="chat-box">
+                    <h2>Chat</h2>
+                    <div className="chat-messages">
+                        {chatMessages.map((msg, index) => (
+                            <div key={index} className={`chat-message ${msg.sender === "You" ? "sent" : "received"}`}>
+                                <strong>{msg.sender}:</strong> {msg.text}
+                            </div>
+                        ))}
+                    </div>
+                    <div className="chat-input">
+                        <input
+                            type="text"
+                            value={message}
+                            onChange={(e) => setMessage(e.target.value)}
+                            placeholder="Type a message..."
+                        />
+                        <button onClick={() => addSignalMessageToChat(message)}>Send</button>
+                    </div>
+                </div>
             </div>
 
-            {/* Seat Grid for Participants */}
+            {/* Seat grid for participants */}
             <div className="seat-grid">
                 {participants.map((participant, index) => (
                     <div key={participant.id || index} className="seat-box">
-                        <h3>Participant {index + 1}</h3>
                         <video
                             ref={(el) => el && (el.srcObject = participant.stream)}
                             className="video-feed"
