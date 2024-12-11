@@ -38,17 +38,15 @@ function RoomPage() {
                     hasJoinedRoom = true;
                 }
 
-                // Access user's media stream
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 localStreamRef.current = stream;
 
-                // If instructor, set main video stream and share it
                 if (socket.id === data.instructorId) {
-                    mainVideoStream.current = stream;
-                    shareInstructorStream();
+                    handleInstructorConnected();
+                } else {
+                    handleUserConnected(socket.id, stream);
                 }
 
-                // Socket event listeners
                 socket.on('seat-updated', setParticipants);
                 socket.on('user-connected', handleUserConnected);
                 socket.on('user-disconnected', handleUserDisconnected);
@@ -78,6 +76,12 @@ function RoomPage() {
         };
     }, [roomId, socket]);
 
+    const handleInstructorConnected = () => {
+        console.log('Instructor connected');
+        mainVideoStream.current = localStreamRef.current;
+        shareInstructorStream();
+    };
+
     const shareInstructorStream = () => {
         Object.keys(peerConnections.current).forEach((userId) => {
             const pc = peerConnections.current[userId];
@@ -89,14 +93,13 @@ function RoomPage() {
         });
     };
 
-    const handleUserConnected = (userId) => {
+    const handleUserConnected = (userId, stream = null) => {
         console.log(`User connected: ${userId}`);
         createPeerConnection(userId, true);
 
-        // If instructor, share video tracks with connected users
-        if (socket.id === instructorId && localStreamRef.current) {
+        if (stream) {
             const pc = peerConnections.current[userId];
-            localStreamRef.current.getTracks().forEach((track) => pc.addTrack(track, localStreamRef.current));
+            stream.getTracks().forEach((track) => pc.addTrack(track, stream));
         }
 
         addSignalMessageToChat({ sender: "System", text: `User ${userId} connected.` });
