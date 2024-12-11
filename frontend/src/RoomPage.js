@@ -7,7 +7,7 @@ function RoomPage() {
     const { roomId } = useParams();
     const socket = useContext(SocketContext);
 
-    const [participants, setParticipants] = useState([]); // Holds participant streams
+    const [participants, setParticipants] = useState(Array(8).fill(null)); // Holds participant streams
     const [instructorId, setInstructorId] = useState(null);
     const [mySocketId, setMySocketId] = useState(null);
 
@@ -113,8 +113,16 @@ function RoomPage() {
         localStreamRef.current.getTracks().forEach((track) => pc.addTrack(track, localStreamRef.current));
 
         pc.ontrack = (event) => {
-            setParticipants((prev) => [...prev, { id: userId, stream: event.streams[0] }]);
+            setParticipants((prev) => {
+                const updated = [...prev];
+                const seatIndex = updated.findIndex((seat) => seat === null);
+                if (seatIndex !== -1) {
+                    updated[seatIndex] = { id: userId, stream: event.streams[0] };
+                }
+                return updated;
+            });
         };
+        
 
         if (createOffer) {
             pc.createOffer()
@@ -185,13 +193,17 @@ function RoomPage() {
             {/* Seat grid for participants */}
             <div className="seat-grid">
                 {participants.map((participant, index) => (
-                    <div key={participant.id || index} className="seat-box">
-                        <video
-                            ref={(el) => el && (el.srcObject = participant.stream)}
-                            className="video-feed"
-                            autoPlay
-                            playsInline
-                        />
+                    <div key={index} className="seat-box">
+                        {participant ? (
+                            <video
+                                ref={(el) => el && (el.srcObject = participant.stream)}
+                                className="video-feed"
+                                autoPlay
+                                playsInline
+                            />
+                        ) : (
+                            <div className="empty-seat">Seat {index + 1}</div>
+                        )}
                     </div>
                 ))}
             </div>
