@@ -145,7 +145,7 @@ io.on('connection', (socket) => {
         io.to(roomId).emit('seat-updated', parsedRoom.participants);
         socket.emit('role-assigned', { role: isInstructor ? 'instructor' : 'student' });
 
-        io.to(roomID).emit(
+        io.to(roomId).emit(
             'signal-message',
             `User ${socket.id} joined room ${roomId} as ${isInstructor ? 'Instructor' : 'Student'}`
         );
