@@ -27,7 +27,7 @@ const io = new Server(server, {
     },
 });
 
-redis.ping((err, result) => { //to check if things are working right - look for PONG in the heroku logs
+redis.ping((err, result) => {
     if (err) {
         console.error('Redis connection error:', err.message);
     } else {
@@ -37,19 +37,17 @@ redis.ping((err, result) => { //to check if things are working right - look for 
 
 // Room creation endpoint
 app.post('/api/create-room', async (req, res) => {
-    console.log('Received POST /api/create-room'); // Debug log to confirm the request hits
-    console.log('Request Body:', req.body); // Debug the payload
+    console.log('Received POST /api/create-room');
+    console.log('Request Body:', req.body);
 
     try {
         const { roomId, passcode, isProtected, instructorId } = req.body;
 
-        // Check required parameters
         if (!roomId || !instructorId) {
             console.log('Missing required fields');
             return res.status(400).json({ error: 'Missing required fields: roomId or instructorId.' });
         }
 
-        // Redis logic
         const roomKey = `room:${roomId}`;
         const roomExists = await redis.exists(roomKey);
 
@@ -87,15 +85,13 @@ app.get('/api/validate-room', async (req, res) => {
 
     const parsedRoom = JSON.parse(roomData);
 
-    // Passcode validation
     if (parsedRoom.isProtected && (!passcode || parsedRoom.passcode !== passcode)) {
         return res.status(403).json({ error: 'Incorrect passcode.' });
     }
 
-    // Include instructorId in the response for frontend to validate role
     res.status(200).json({
         message: 'Room validated',
-        instructorId: parsedRoom.instructorId, // Send instructor ID to the client
+        instructorId: parsedRoom.instructorId,
     });
 });
 
@@ -103,7 +99,6 @@ app.get('/api/validate-room', async (req, res) => {
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
 
-    // Join-room logic
     socket.on('join-room', async ({ roomId, passcode }) => {
         const roomKey = `room:${roomId}`;
         const roomData = await redis.get(roomKey);
@@ -115,24 +110,20 @@ io.on('connection', (socket) => {
 
         const parsedRoom = JSON.parse(roomData);
 
-        // Passcode validation
         if (parsedRoom.isProtected && parsedRoom.passcode !== passcode) {
             socket.emit('error', 'Incorrect passcode.');
             return;
         }
 
-        // Check if the user is the instructor
         const isInstructor = parsedRoom.instructorId === socket.id;
 
         if (isInstructor) {
             console.log(`Instructor ${socket.id} joined room ${roomId}`);
         } else {
-            // Assign the user to the next available seat (1-8)
             const freeSeatIndex = parsedRoom.participants.findIndex((seat, index) => index > 0 && seat === null);
             if (freeSeatIndex !== -1) {
                 parsedRoom.participants[freeSeatIndex] = socket.id;
                 await redis.set(roomKey, JSON.stringify(parsedRoom), 'EX', 1800);
-
                 console.log(`User ${socket.id} assigned to seat ${freeSeatIndex} in room ${roomId}`);
             } else {
                 socket.emit('error', 'No seats available in this room.');
@@ -140,53 +131,44 @@ io.on('connection', (socket) => {
             }
         }
 
-        // Emit updated participants and role
         socket.join(roomId);
         io.to(roomId).emit('seat-updated', parsedRoom.participants);
         socket.emit('role-assigned', { role: isInstructor ? 'instructor' : 'student' });
-
         io.to(roomId).emit(
             'signal-message',
             `User ${socket.id} joined room ${roomId} as ${isInstructor ? 'Instructor' : 'Student'}`
         );
     });
 
-
-    // Disconnect handling
     socket.on('disconnect', async () => {
         const keys = await redis.keys('room:*');
 
         for (const key of keys) {
             const roomData = JSON.parse(await redis.get(key));
 
-            // Find and remove the disconnected user
             const seatIndex = roomData.participants.indexOf(socket.id);
             if (seatIndex !== -1) {
-                console.log(`User ${socket.id} disconnected from room ${key.split(':')[1]}`);
                 roomData.participants[seatIndex] = null;
 
-                // Update room data in Redis
+                // Check if the instructor disconnected
+                if (roomData.instructorId === socket.id) {
+                    console.log(`Instructor disconnected, closing room ${key.split(':')[1]}`);
+                    await redis.del(key); // Delete room
+                    io.to(key.split(':')[1]).emit('room-closed', { message: 'The instructor closed the room.' });
+                    return;
+                }
+
                 await redis.set(key, JSON.stringify(roomData), 'EX', 1800);
                 io.to(key.split(':')[1]).emit('seat-updated', roomData.participants);
-            }
-
-            // Check if the room is empty
-            const hasParticipants = roomData.participants.some((seat) => seat !== null);
-            if (!hasParticipants) {
-                await redis.del(key); // Delete the room if empty
-                console.log(`Room ${key.split(':')[1]} deleted due to inactivity.`);
+                io.to(key.split(':')[1]).emit(
+                    'signal-message',
+                    `User ${socket.id} disconnected from room ${key.split(':')[1]}`
+                );
             }
         }
 
         console.log(`User disconnected: ${socket.id}`);
-        io.to(key.split(':')[1]).emit(
-            'signal-message',
-            `User ${socket.id} disconnected from room ${key.split(':')[1]}`
-        );
-        
     });
-
-
 });
 
 // Serve the static React app

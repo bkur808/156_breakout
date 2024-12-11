@@ -41,6 +41,12 @@ function RoomPage() {
                 socket.on('signal-message', (signalMsg) => {
                     addSignalMessageToChat(signalMsg);
                 });
+
+                socket.on('room-closed', () => {
+                    addSignalMessageToChat("The room has been closed by the instructor.");
+                    alert("Room closed by instructor. Redirecting to homepage.");
+                    window.location.href = '/';
+                });
             })
             .catch((err) => {
                 console.error('Error:', err.message);
@@ -57,6 +63,7 @@ function RoomPage() {
             socket.off('signal');
             socket.off('user-connected');
             socket.off('user-disconnected');
+            socket.off('room-closed');
         };
     }, [roomId, socket]);
 
@@ -77,7 +84,6 @@ function RoomPage() {
             pc.addIceCandidate(new RTCIceCandidate(candidate));
         }
 
-        // Log signal messages into chat
         addSignalMessageToChat(`Signal received from user ${userId}`);
     };
 
@@ -86,13 +92,37 @@ function RoomPage() {
         addSignalMessageToChat(`User ${userId} connected.`);
     };
 
-    const handleUserDisconnected = (userId) => {
-        if (peerConnections.current[userId]) {
-            peerConnections.current[userId].close();
-            delete peerConnections.current[userId];
+    const closeRoom = async () => {
+        try {
+            const response = await fetch('/api/delete-room', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ roomId }),
+            });
+
+            if (response.ok) {
+                console.log('Room closed successfully.');
+                socket.emit('room-closed', { message: 'The room has been closed by the instructor.' });
+            } else {
+                console.error('Failed to close the room:', response.statusText);
+            }
+        } catch (error) {
+            console.error('Error closing the room:', error);
         }
-        setParticipants((prev) => prev.map((seat) => (seat === userId ? null : seat)));
-        addSignalMessageToChat(`User ${userId} disconnected.`);
+    };
+
+    const handleUserDisconnected = (userId) => {
+        if (userId === instructorId) {
+            console.log("Instructor disconnected. Closing the room.");
+            closeRoom();
+        } else {
+            if (peerConnections.current[userId]) {
+                peerConnections.current[userId].close();
+                delete peerConnections.current[userId];
+            }
+            setParticipants((prev) => prev.map((seat) => (seat === userId ? null : seat)));
+            addSignalMessageToChat(`User ${userId} disconnected.`);
+        }
     };
 
     const createPeerConnection = (userId, createOffer) => {
@@ -135,13 +165,13 @@ function RoomPage() {
     return (
         <div className="room-page">
             <h1>Room ID: {roomId}</h1>
+            <button onClick={closeRoom} style={{ display: instructorId === socket.id ? 'block' : 'none' }}>
+                Close Room
+            </button>
             <div className="top-container">
-                {/* Instructor Video */}
                 <div className="main-video">
                     <video ref={localVideoRef} className="video-feed" autoPlay playsInline muted />
                 </div>
-
-                {/* Chat Box */}
                 <div className="chat-box">
                     <h2>Chat</h2>
                     <div className="chat-messages">
@@ -163,17 +193,11 @@ function RoomPage() {
                 </div>
             </div>
 
-            {/* Seat Grid for Participants */}
             <div className="seat-grid">
                 {participants.map((participant, index) => (
                     <div key={index} className="seat-box">
                         {participant ? (
-                            <video
-                                ref={(el) => el && (el.srcObject = participant)}
-                                className="video-feed"
-                                autoPlay
-                                playsInline
-                            />
+                            <video ref={(el) => el && (el.srcObject = participant)} className="video-feed" autoPlay playsInline />
                         ) : (
                             <div className="empty-seat">Seat {index + 1}</div>
                         )}
