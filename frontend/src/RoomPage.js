@@ -16,7 +16,7 @@ function RoomPage() {
     const [chatMessages, setChatMessages] = useState([]);
     const [message, setMessage] = useState("");
 
-    const mainVideoStream = useRef(null); // Ref to hold the main instructor stream
+    const mainVideoStream = useRef(null); // Holds instructor's stream
 
     useEffect(() => {
         let hasJoinedRoom = false;
@@ -42,9 +42,10 @@ function RoomPage() {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 localStreamRef.current = stream;
 
-                // If instructor, set main video stream
+                // If instructor, set main video stream and share it
                 if (socket.id === data.instructorId) {
                     mainVideoStream.current = stream;
+                    shareInstructorStream();
                 }
 
                 // Socket event listeners
@@ -76,6 +77,17 @@ function RoomPage() {
             socket.off('room-closed');
         };
     }, [roomId, socket]);
+
+    const shareInstructorStream = () => {
+        Object.keys(peerConnections.current).forEach((userId) => {
+            const pc = peerConnections.current[userId];
+            if (localStreamRef.current) {
+                localStreamRef.current.getTracks().forEach((track) => {
+                    pc.addTrack(track, localStreamRef.current);
+                });
+            }
+        });
+    };
 
     const handleUserConnected = (userId) => {
         console.log(`User connected: ${userId}`);
@@ -191,7 +203,6 @@ function RoomPage() {
                         muted
                         ref={(el) => el && (el.srcObject = mainVideoStream.current)}
                     />
-                    <p>{instructorId ? `Instructor ID: ${instructorId}` : "Loading..."}</p>
                 </div>
 
                 <div className="chat-box">
