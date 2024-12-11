@@ -60,7 +60,7 @@ app.post('/api/create-room', async (req, res) => {
             passcode: isProtected ? passcode : null,
             isProtected,
             instructorId,
-            participants: [instructorId, ...Array(8).fill(null)],
+            participants: [Array(8).fill(null)],
         };
 
         await redis.set(roomKey, JSON.stringify(roomData), 'EX', 1800); // Set with 30 min expiry
