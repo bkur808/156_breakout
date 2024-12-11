@@ -114,20 +114,21 @@ function RoomPage() {
     };
 
     const createPeerConnection = (userId, createOffer) => {
-        if (peerConnections.current[userId]) return; // Avoid duplicate connections
-
+        if (peerConnections.current[userId]) return; // Prevent duplicate connections
+    
         const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
         peerConnections.current[userId] = pc;
-
-        localStreamRef.current.getTracks().forEach((track) => pc.addTrack(track, localStreamRef.current));
-
-        pc.onicecandidate = (event) => {
-            if (event.candidate) {
-                socket.emit('signal', { roomId, userId, candidate: event.candidate });
-            }
-        };
-
+    
+        // Add local video and audio tracks to the peer connection
+        if (localStreamRef.current) {
+            localStreamRef.current.getTracks().forEach((track) => {
+                pc.addTrack(track, localStreamRef.current);
+            });
+        }
+    
+        // Handle incoming remote tracks
         pc.ontrack = (event) => {
+            console.log(`Received track from user ${userId}`);
             setParticipants((prev) => {
                 const updated = [...prev];
                 const seatIndex = updated.findIndex((seat) => seat === null);
@@ -137,17 +138,32 @@ function RoomPage() {
                 return updated;
             });
         };
-
+    
+        // Handle ICE candidates
+        pc.onicecandidate = (event) => {
+            if (event.candidate) {
+                socket.emit('signal', { roomId, userId, candidate: event.candidate });
+            }
+        };
+    
+        // If initiating the connection, create and send an offer
         if (createOffer) {
             pc.createOffer()
                 .then((offer) => pc.setLocalDescription(offer))
-                .then(() => socket.emit('signal', { roomId, userId, offer: pc.localDescription }));
+                .then(() => {
+                    socket.emit('signal', { roomId, userId, offer: pc.localDescription });
+                });
         }
     };
+    
 
     const addSignalMessageToChat = (data) => {
-        setChatMessages((prev) => [...prev, { sender: data.sender, text: data.text }]);
+        // Avoid displaying messages sent by the current user's socket ID
+        if (data.sender !== socket.id) {
+            setChatMessages((prev) => [...prev, { sender: data.sender, text: data.text }]);
+        }
     };
+    
 
     const handleRoomClosed = () => {
         addSignalMessageToChat({ sender: "System", text: "The room has been closed by the instructor." });
