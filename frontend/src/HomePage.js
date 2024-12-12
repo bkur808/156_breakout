@@ -23,6 +23,7 @@ function HomePage() {
             passcode: isProtected ? passcode : null,
             isProtected,
             instructorId: socket.id, // Pass the creator's Socket.IO ID as the instructorId
+            participants: Array(8).fill(null) 
         };
 
         fetch(`/api/create-room`, {

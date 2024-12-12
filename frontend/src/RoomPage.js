@@ -100,6 +100,7 @@ function RoomPage() {
             const pc = peerConnections.current[userId];
             stream.getTracks().forEach((track) => pc.addTrack(track, stream));
         }
+        shareInstructorStream();
 
         addSignalMessageToChat({ sender: "System", text: `User ${userId} connected.` });
     };

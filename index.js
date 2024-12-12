@@ -36,7 +36,7 @@ redis.ping((err, result) => {
 // Room creation endpoint
 app.post('/api/create-room', async (req, res) => {
     console.log('Received POST /api/create-room');
-    const { roomId, passcode, isProtected, instructorId } = req.body;
+    const { roomId, passcode, isProtected, instructorId, participants } = req.body;
 
     if (!roomId || !instructorId) {
         return res.status(400).json({ error: 'Missing required fields: roomId or instructorId.' });
@@ -57,6 +57,7 @@ app.post('/api/create-room', async (req, res) => {
     };
 
     await redis.set(roomKey, JSON.stringify(roomData), 'EX', 1800);
+    console.log(JSON.stringify(roomData));
     console.log(`Room ${roomId} created by instructor ${instructorId}`);
     res.status(201).json({ message: 'Room created', roomId });
 });
@@ -77,6 +78,7 @@ app.get('/api/validate-room', async (req, res) => {
         return res.status(403).json({ error: 'Incorrect passcode.' });
     }
 
+    console.log(`Room ${roomId} validated by ${socket.id}`);
     res.status(200).json({ message: 'Room validated', instructorId: parsedRoom.instructorId });
 });
 
