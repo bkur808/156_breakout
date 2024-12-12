@@ -185,7 +185,7 @@ function RoomPage() {
             {mySocketId === instructorId && (
                 <button onClick={handleRoomClosed}>Close Room</button>
             )}
-            <button onClick={toggleTheme}>Toggle Theme</button>
+            <button onClick={toggleTheme} className='roompage-button'>Toggle Dark Mode</button>
             <div className="top-container">
                 <div className="main-video">
                     <h2>Instructor</h2>
