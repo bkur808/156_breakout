@@ -21,17 +21,6 @@ function RoomPage() {
     const mainVideoStream = useRef(null); // Holds instructor's stream
 
     useEffect(() => {
-        if (mainVideoStream.current) {
-            // Assign the instructor's stream (or the main stream) to the main video ref
-            if (socket.id === instructorId && localStreamRef.current) {
-                mainVideoStream.current.srcObject = localStreamRef.current;
-            } else if (mainVideoStream.current.srcObject === null) {
-                mainVideoStream.current.srcObject = mainVideoStream.current;
-            }
-        }
-    }, [instructorId, socket.id]);
-    
-    useEffect(() => {
         let hasJoinedRoom = false;
 
         const fetchRoomDetailsAndJoin = async () => {
@@ -291,10 +280,20 @@ function RoomPage() {
                         autoPlay
                         playsInline
                         muted={socket.id === instructorId} // Mute only on instructor's side
-                        ref={mainVideoStream}
+                        ref={(el) => {
+                            if (el) {
+                                // If the current user is the instructor, display the local stream
+                                if (socket.id === instructorId && localStreamRef.current) {
+                                    el.srcObject = localStreamRef.current;
+                                } 
+                                // If not, display the instructor's main video stream
+                                else if (mainVideoStream.current) {
+                                    el.srcObject = mainVideoStream.current;
+                                }
+                            }
+                        }}
                     />
                 </div>
-
 
                 <div className="chat-box">
                     <h2>Chat</h2>
