@@ -77,33 +77,51 @@ function RoomPage() {
         };
     }, [roomId, socket]);
 
-    const handleInstructorConnected = () => {
+    const handleInstructorConnected = async () => {
         console.log('Instructor connected');
-        mainVideoStream.current = localStreamRef.current;
+        
+        try {
+            // Request access to media devices
+            if (!localStreamRef.current) {
+                localStreamRef.current = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            }
     
-        // Create a self peer connection for the instructor
-        createPeerConnection(socket.id, false);
+            // Create self peer connection after media stream is ready
+            createPeerConnection(socket.id, false);
     
-        // Add instructor's local stream to the self connection
-        const pc = peerConnections.current[socket.id];
+            // Add local tracks to the self peer connection
+            const pc = peerConnections.current[socket.id];
+            if (pc && localStreamRef.current) {
+                localStreamRef.current.getTracks().forEach((track) => {
+                    pc.addTrack(track, localStreamRef.current);
+                });
+            }
+        } catch (err) {
+            console.error("Error accessing media devices:", err);
+            alert("You need to allow access to your camera and microphone to continue.");
+        }
+    };
+    
+    const handleUserConnected = async (userId) => {
+        console.log(`User connected: ${userId}`);
+    
+        // Ensure local stream is available
+        if (!localStreamRef.current) {
+            localStreamRef.current = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        }
+    
+        createPeerConnection(userId, true);
+    
+        const pc = peerConnections.current[userId];
         if (pc && localStreamRef.current) {
             localStreamRef.current.getTracks().forEach((track) => {
                 pc.addTrack(track, localStreamRef.current);
             });
         }
-    };
-
-    const handleUserConnected = (userId, stream = null) => {
-        console.log(`User connected: ${userId}`);
-        createPeerConnection(userId, true);
-
-        if (stream) {
-            const pc = peerConnections.current[userId];
-            stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-        }
-
+    
         addSignalMessageToChat({ sender: "System", text: `User ${userId} connected.` });
     };
+    
 
     const handleUserDisconnected = (userId) => {
         console.log(`User disconnected: ${userId}`);
