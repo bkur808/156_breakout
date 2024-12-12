@@ -78,7 +78,7 @@ app.get('/api/validate-room', async (req, res) => {
         return res.status(403).json({ error: 'Incorrect passcode.' });
     }
 
-    console.log(`Room ${roomId} validated by ${socket.id}`);
+    console.log(`Room ${roomId} validated`);
     res.status(200).json({ message: 'Room validated', instructorId: parsedRoom.instructorId });
 });
 
