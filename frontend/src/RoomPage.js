@@ -26,8 +26,8 @@ function RoomPage() {
             const storedPasscode = localStorage.getItem(`passcode-${roomId}`) || '';
 
             try {
-                const response = await fetch(`/api/fetch-room-data/${roomId}`);
-                if (!response.ok) throw new Error('Room data fetch failed');
+                const response = await fetch(`/api/validate-room?roomId=${roomId}&passcode=${storedPasscode}`); //Where double validation happens
+                if (!response.ok) throw new Error('Room validation failed');
                 const data = await response.json();
 
                 setInstructorId(data.instructorId);
