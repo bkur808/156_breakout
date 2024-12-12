@@ -80,7 +80,7 @@ function HomePage() {
     return (
         <div className={`homepage ${isDarkMode ? 'dark-mode' : ''}`}>
             <h1 className="homepage-title">Welcome to Breakout 156</h1>
-            <button onClick={toggleTheme} className="homepage-button">Toggle Dark Mode</button>
+            
             <div className="homepage-input-group">
                 <input
                     type="text"
@@ -119,6 +119,7 @@ function HomePage() {
                     Join Room
                 </button>
             </div>
+            <button onClick={toggleTheme} className="homepage-button">Toggle Dark Mode</button>
         </div>
     );
 }
