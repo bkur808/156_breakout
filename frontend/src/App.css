@@ -15,14 +15,12 @@
 }
 
 .App-header {
-  background-color: #282c34;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   font-size: calc(10px + 2vmin);
-  color: white;
 }
 
 .App-link {
@@ -38,64 +36,99 @@
   }
 }
 
+/* Global Theme Styles */
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Arial', sans-serif;
+}
+
+/* Dark Mode */
+body.dark-mode {
+  background-color: #121212; /* Dark background */
+  color: #ffffff; /* Light text for contrast */
+}
+
+/* Light Mode (Default) */
+body:not(.dark-mode) {
+  background-color: #f4f4f9; /* Light background */
+  color: #333; /* Dark text for contrast */
+}
+
 /* Homepage Styles */
 .homepage {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100vh;
-  font-family: Arial, sans-serif;
-  background-color: #f4f4f9;
+  min-height: 100vh;
+  padding: 20px;
 }
 
 .homepage-title {
   font-size: 2.5rem;
-  margin-bottom: 20px;
-  color: #333;
+  margin-bottom: 30px;
+  text-align: center;
+  opacity: 0; /* Initially hidden */
+  transform: scale(0.8); /* Slightly smaller */
+  animation: scaleFadeIn 1.2s ease-out forwards; /* Scale and fade-in effect */
 }
 
+@keyframes scaleFadeIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+
 .homepage-input-group {
-  margin-bottom: 20px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  margin-bottom: 20px;
+  width: 100%;
+  max-width: 400px;
 }
 
 .homepage-input {
-  padding: 10px;
-  font-size: 16px;
-  width: 300px;
+  width: 100%;
+  padding: 12px 15px;
+  margin: 10px 0;
+  font-size: 1rem;
   border: 1px solid #ccc;
-  border-radius: 4px;
+  border-radius: 5px;
+  outline: none;
 }
 
 .homepage-label {
-  font-size: 14px;
-  color: #555;
   display: flex;
   align-items: center;
-  gap: 5px;
+  font-size: 0.9rem;
 }
 
 .homepage-checkbox {
-  margin-right: 5px;
-}
-
-.homepage-button {
-  padding: 10px 20px;
-  font-size: 16px;
-  background-color: #007BFF;
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
+  margin-right: 10px;
 }
 
 .homepage-button-group {
   display: flex;
-  gap: 20px;
+  gap: 10px;
+  justify-content: center;
+}
+
+.homepage-button,
+.roompage-button { /* Combine button styles */
+  padding: 10px 20px;
+  font-size: 1rem;
+  font-weight: bold;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
 }
 
 
@@ -105,7 +138,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  height: 100vh; /* Full screen height */
+  height: 100vh;
   background-color: #f4f4f9;
   font-family: Arial, sans-serif;
   padding: 10px;
@@ -125,13 +158,13 @@
   align-items: flex-start;
   width: 100%;
   max-width: 1200px;
-  height: 60%; /* Takes up 45% of the viewport height */
+  height: 60%;
   margin-bottom: 10px;
 }
 
 .main-video {
-  width: 60%; /* Instructor video occupies 60% of the top container width */
-  height: 100%; /* Fills the height of the top container */
+  width: 60%;
+  height: 100%;
   border: 2px solid black;
   border-radius: 10px;
   background-color: #000;
@@ -141,8 +174,8 @@
 }
 
 .chat-box {
-  width: 35%; /* Chat box occupies 35% of the top container width */
-  height: 100%; /* Fills the height of the top container */
+  width: 35%;
+  height: 100%;
   border: 2px solid #ccc;
   border-radius: 10px;
   background-color: white;
@@ -214,11 +247,11 @@
 /* Participant Grid */
 .seat-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); /* Responsive grid */
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
   gap: 10px;
   width: 100%;
   max-width: 1200px;
-  height: 35%; /* Participant grid takes up 50% of the viewport height */
+  height: 35%;
   padding: 10px;
   box-sizing: border-box;
 }
