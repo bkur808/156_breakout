@@ -188,19 +188,34 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('signal', ({ roomId, userId, offer, answer, candidate }) => {
-        console.log("Signal received:", { roomId, userId, offer, answer, candidate });
+    socket.on('signal', async ({ roomId, offer, answer, candidate }) => {
+        const roomKey = `room:${roomId}`;
+        const roomData = await redis.get(roomKey);
     
-        // Relay the signal to the target user
-        io.to(userId).emit('signal', {
-            userId: socket.id, // Sender's ID
-            offer,
-            answer,
-            candidate,
-        });
+        if (!roomData) {
+            console.error(`Room ${roomId} not found.`);
+            return;
+        }
     
-        console.log(`Relayed signal to ${userId}`);
-    });
+        const { instructorId, participants } = JSON.parse(roomData);
+    
+        // Decide target user (instructor or other participants)
+        const targetUserId = socket.id === instructorId
+            ? participants.find((p) => p) // If sender is instructor, send to the first participant
+            : instructorId; // Otherwise, send to the instructor
+    
+        if (targetUserId) {
+            console.log(`Relaying signal to ${targetUserId}`);
+            io.to(targetUserId).emit('signal', { 
+                userId: socket.id, // Who sent the signal
+                offer,
+                answer,
+                candidate
+            });
+        } else {
+            console.warn("No valid target user to relay the signal.");
+        }
+    });    
     
 });
 
