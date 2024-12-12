@@ -1,6 +1,6 @@
 https://breakout156-b681cd0847ff.herokuapp.com/
-Backend - Node.js
-Frontend - React.js
+Backend - Node.js - stored in index.js
+Frontend - React.js - stored in App.js HomePage.js RoomPage.js and App.css
 Hosting on Heroku
 
 Hey
