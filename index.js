@@ -188,46 +188,40 @@ io.on('connection', (socket) => {
         }
     });
 
+    const pendingOffers = {}; // Store pending offers to track origin participants
+
     socket.on('signal', async ({ roomId, offer, answer, candidate }) => {
         const roomKey = `room:${roomId}`;
         const roomData = await redis.get(roomKey);
-    
-        if (!roomData) {
-            console.error("Room does not exist:", roomId);
-            return;
-        }
-    
+
+        if (!roomData) return console.error(`Room ${roomId} not found`);
+
         const parsedRoom = JSON.parse(roomData);
         const instructorId = parsedRoom.instructorId;
-    
-        // Relay Offer to the Instructor
+
         if (offer) {
-            console.log(`Relaying offer to instructor ${instructorId}`);
-            io.to(instructorId).emit('signal', { 
-                userId: socket.id, // Participant ID (who sent the offer)
-                offer 
-            });
-        } 
-        // Relay Answer back to the Participant
-        else if (answer) {
-            console.log(`Relaying answer back to participant ${socket.id}`);
-            io.to(socket.id).emit('signal', { 
-                userId: instructorId, // Instructor ID (who answered)
-                answer 
-            });
-        } 
-        // Handle ICE Candidates
-        else if (candidate) {
-            console.log(`Relaying candidate to ${socket.id}`);
-            io.to(instructorId).emit('signal', { 
-                userId: socket.id, 
-                candidate 
-            });
+            // Relay offers to the instructor and store the sender ID
+            console.log(`Relaying offer to instructor ${instructorId} from ${socket.id}`);
+            pendingOffers[instructorId] = socket.id; // Track the participant's ID
+            io.to(instructorId).emit('signal', { roomId, userId: socket.id, offer });
+        } else if (answer) {
+            // Relay answers back to the participant who sent the offer
+            const participantId = pendingOffers[socket.id]; // Get the original participant's ID
+            if (participantId) {
+                console.log(`Relaying answer back to participant ${participantId}`);
+                io.to(participantId).emit('signal', { roomId, userId: socket.id, answer });
+                delete pendingOffers[socket.id]; // Clean up after relaying
+            } else {
+                console.error(`No pending offer found for instructor ${socket.id}`);
+            }
+        } else if (candidate) {
+            // Relay ICE candidates to the appropriate peer
+            const target = socket.id === instructorId ? parsedRoom.participants[0] : instructorId;
+            console.log(`Relaying ICE candidate to ${target}`);
+            io.to(target).emit('signal', { roomId, userId: socket.id, candidate });
         }
     });
-    
-    
-    
+
 });
 
 app.use(express.static(path.join(__dirname, 'frontend/build')));
