@@ -79,7 +79,6 @@ function RoomPage() {
     const handleInstructorConnected = () => {
         console.log('Instructor connected');
         mainVideoStream.current = localStreamRef.current;
-        shareInstructorStream();
     };
 
     const shareInstructorStream = () => {
