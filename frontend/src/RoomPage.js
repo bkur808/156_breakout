@@ -216,19 +216,17 @@ function RoomPage() {
 
         if (createOffer) {
             pc.createOffer()
-    .then((offer) => {
-        console.log("SDP Offer created:", offer);
-        return pc.setLocalDescription(offer);
-    })
-    .then(() => {
-        console.log("Sending SDP Offer to signaling server...");
-        socket.emit('signal', { 
-            roomId, 
-            userId: instructorId, // Send to the instructor's socket ID
-            offer: pc.localDescription 
-        });
-    });
-
+                .then((offer) => {
+                    console.log("SDP Offer created:", offer);
+                    return pc.setLocalDescription(offer);
+                })
+                .then(() => {
+                    console.log("Sending SDP Offer to signaling server...");
+                    socket.emit('signal', { 
+                        roomId, 
+                        offer: pc.localDescription // Send only the roomId and offer
+                    });
+                });
         }
         
     };

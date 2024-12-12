@@ -119,6 +119,7 @@ body:not(.dark-mode) {
   display: flex;
   gap: 10px;
   justify-content: center;
+  margin-bottom: 1rem; /* Adjust gap size as needed */
 }
 
 .homepage-button,
