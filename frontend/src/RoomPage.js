@@ -23,19 +23,18 @@ function RoomPage() {
     useEffect(() => {
         let hasJoinedRoom = false;
 
-        const validateAndJoinRoom = async () => {
-            console.log(`Joining room with ID: ${roomId}`);
-            const storedPasscode = localStorage.getItem(`passcode-${roomId}`) || '';
-
+        const fetchRoomDetailsAndJoin = async () => {
+            console.log(`Fetching room details for ID: ${roomId}`);
             try {
-                const response = await fetch(`/api/validate-room?roomId=${roomId}&passcode=${storedPasscode}`); //Where double validation happens
-                if (!response.ok) throw new Error('Room validation failed');
+                const response = await fetch(`/fetch-room-data/${roomId}`);
+                if (!response.ok) throw new Error('Failed to fetch room details');
                 const data = await response.json();
 
+                console.log('Room details fetched:', data);
                 setInstructorId(data.instructorId);
 
                 if (!hasJoinedRoom) {
-                    socket.emit('join-room', { roomId, passcode: storedPasscode });
+                    socket.emit('join-room', { roomId });
                     setMySocketId(socket.id);
                     hasJoinedRoom = true;
                 }
@@ -61,7 +60,7 @@ function RoomPage() {
             }
         };
 
-        validateAndJoinRoom();
+        fetchRoomDetailsAndJoin();
 
         return () => {
             Object.values(peerConnections.current).forEach((pc) => pc.close());
@@ -206,7 +205,6 @@ function RoomPage() {
             <button onClick={toggleTheme} className='roompage-button'>Toggle Dark Mode</button>
             <div className="top-container">
                 <div className="main-video">
-                    <h2>Instructor</h2>
                     <video
                         className="video-feed"
                         autoPlay
