@@ -139,7 +139,9 @@ body:not(.dark-mode) {
   align-items: center;
   justify-content: flex-start;
   height: 100vh;
-  background-color: #f4f4f9;
+  /* Inherit background and text color from body */
+  background-color: inherit; 
+  color: inherit; 
   font-family: Arial, sans-serif;
   padding: 10px;
   box-sizing: border-box;
@@ -147,7 +149,6 @@ body:not(.dark-mode) {
 
 .room-page h1 {
   font-size: 2rem;
-  color: #333;
   margin-bottom: 10px;
 }
 
@@ -178,7 +179,9 @@ body:not(.dark-mode) {
   height: 100%;
   border: 2px solid #ccc;
   border-radius: 10px;
-  background-color: white;
+  /* Inherit background and text color from body */
+  background-color: inherit; 
+  color: inherit; 
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
@@ -186,8 +189,9 @@ body:not(.dark-mode) {
 
 .chat-box h2 {
   text-align: center;
-  background-color: #007BFF;
-  color: white;
+  /* Adjust background and text color based on mode */
+  background-color: #007BFF; /* Light blue in light mode */
+  color: white; /* White text in light mode */
   padding: 10px;
   margin: 0;
   border-top-left-radius: 8px;
@@ -198,8 +202,10 @@ body:not(.dark-mode) {
   flex: 1;
   padding: 10px;
   overflow-y: auto;
-  background-color: #f9f9f9;
+  /* Adjust background color based on mode */
+  background-color: #f9f9f9; /* Light gray in light mode */
 }
+
 
 .chat-message {
   margin-bottom: 10px;
