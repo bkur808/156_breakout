@@ -82,6 +82,25 @@ app.get('/api/validate-room', async (req, res) => {
     res.status(200).json({ message: 'Room validated', instructorId: parsedRoom.instructorId });
 });
 
+//Fetch Room Data
+app.get('/fetch-room-data/:roomId', async (req, res) => {
+    const roomId = req.params.roomId;
+    const roomKey = `room:${roomId}`;
+  
+    try {
+      const roomData = await redis.get(roomKey);
+      if (roomData) {
+        res.json(JSON.parse(roomData));
+      } else {
+        res.status(404).json({ error: 'Room not found' });
+      }
+    } catch (error) {
+      console.error('Error fetching room data:', error);
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
+
 // Socket.IO connection
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);

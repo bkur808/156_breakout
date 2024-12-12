@@ -55,7 +55,7 @@ function HomePage() {
             return;
         }
 
-        fetch(`/api/validate-room?roomId=${roomId}&passcode=${passcode}`)
+        fetch(`/api/validate-room?roomId=${roomId}&passcode=${passcode}`) //first validation
             .then((response) => {
                 if (!response.ok) {
                     return response.json().then((error) => {
