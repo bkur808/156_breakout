@@ -140,25 +140,47 @@ function RoomPage() {
     };
 
     const handleSignal = ({ userId, offer, answer, candidate }) => {
-        const pc = peerConnections.current[userId];
-        if (!pc) return;
-
+        console.log(`Signal received from ${userId}:`, { offer, answer, candidate });
+    
+        let pc = peerConnections.current[userId];
+        if (!pc) {
+            console.warn(`No peer connection found for ${userId}. Creating one...`);
+            pc = createPeerConnection(userId, false); // Ensure connection exists
+        }
+    
         if (offer) {
-            console.log(`Received SDP Offer from user ${userId}:`, offer);
+            console.log(`Received SDP Offer from ${userId}:`, offer);
             pc.setRemoteDescription(new RTCSessionDescription(offer))
-                .then(() => pc.createAnswer())
+                .then(() => {
+                    console.log("Remote description set. Creating SDP Answer...");
+                    return pc.createAnswer();
+                })
                 .then((answer) => {
                     console.log("SDP Answer created:", answer);
-                    pc.setLocalDescription(answer);
-                    console.log("Sending SDP Answer to signaling server.");
+                    return pc.setLocalDescription(answer);
+                })
+                .then(() => {
+                    console.log("Sending SDP Answer back to signaling server.");
                     socket.emit('signal', { roomId, userId, answer: pc.localDescription });
+                })
+                .catch((err) => {
+                    console.error("Error handling SDP offer:", err);
                 });
         } else if (answer) {
-            console.log(`Received SDP Answer from user ${userId}:`, answer);
-            pc.setRemoteDescription(new RTCSessionDescription(answer));
+            console.log(`Received SDP Answer from ${userId}:`, answer);
+            pc.setRemoteDescription(new RTCSessionDescription(answer))
+                .catch((err) => {
+                    console.error("Error setting SDP Answer:", err);
+                });
+        } else if (candidate) {
+            console.log(`Received ICE Candidate from ${userId}:`, candidate);
+            pc.addIceCandidate(new RTCIceCandidate(candidate))
+                .catch((err) => {
+                    console.error("Error adding ICE Candidate:", err);
+                });
         }
-        
     };
+    
 
     const createPeerConnection = (userId, createOffer) => {
         if (peerConnections.current[userId]) return;
