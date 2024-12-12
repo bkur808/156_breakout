@@ -79,28 +79,34 @@ function RoomPage() {
 
     const handleInstructorConnected = async () => {
         console.log('Instructor connected');
-        
+    
         try {
-            // Request access to media devices
+            // Ensure local stream is obtained
             if (!localStreamRef.current) {
+                console.log("Requesting instructor's media stream...");
                 localStreamRef.current = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                console.log("Instructor's media stream obtained:", localStreamRef.current);
             }
     
-            // Create self peer connection after media stream is ready
+            // Create self peer connection
             createPeerConnection(socket.id, false);
     
-            // Add local tracks to the self peer connection
+            // Add tracks to self peer connection
             const pc = peerConnections.current[socket.id];
             if (pc && localStreamRef.current) {
                 localStreamRef.current.getTracks().forEach((track) => {
+                    console.log(`Adding track (${track.kind}) to peer connection for instructor.`);
                     pc.addTrack(track, localStreamRef.current);
                 });
+            } else {
+                console.error("Peer connection or local stream not available for instructor!");
             }
         } catch (err) {
-            console.error("Error accessing media devices:", err);
+            console.error("Error accessing media devices for instructor:", err);
             alert("You need to allow access to your camera and microphone to continue.");
         }
     };
+    
     
     const handleUserConnected = async (userId) => {
         console.log(`User connected: ${userId}`);
@@ -138,17 +144,20 @@ function RoomPage() {
         if (!pc) return;
 
         if (offer) {
+            console.log(`Received SDP Offer from user ${userId}:`, offer);
             pc.setRemoteDescription(new RTCSessionDescription(offer))
                 .then(() => pc.createAnswer())
                 .then((answer) => {
+                    console.log("SDP Answer created:", answer);
                     pc.setLocalDescription(answer);
+                    console.log("Sending SDP Answer to signaling server.");
                     socket.emit('signal', { roomId, userId, answer: pc.localDescription });
                 });
         } else if (answer) {
+            console.log(`Received SDP Answer from user ${userId}:`, answer);
             pc.setRemoteDescription(new RTCSessionDescription(answer));
-        } else if (candidate) {
-            pc.addIceCandidate(new RTCIceCandidate(candidate));
         }
+        
     };
 
     const createPeerConnection = (userId, createOffer) => {
@@ -161,12 +170,17 @@ function RoomPage() {
         peerConnections.current[userId] = pc;
 
         pc.ontrack = (event) => {
-            console.log(`Received track from user ${userId}`);
+            console.log(`ontrack triggered: Received track(s) from user ${userId}`);
+            console.log("Event streams:", event.streams);
+        
             setParticipants((prev) => {
                 const updated = [...prev];
                 const seatIndex = updated.findIndex((seat) => seat === null);
                 if (seatIndex !== -1) {
+                    console.log(`Adding stream to participants at seat ${seatIndex}.`);
                     updated[seatIndex] = { id: userId, stream: event.streams[0] };
+                } else {
+                    console.warn("No available seat to add the incoming stream!");
                 }
                 return updated;
             });
@@ -180,11 +194,16 @@ function RoomPage() {
 
         if (createOffer) {
             pc.createOffer()
-                .then((offer) => pc.setLocalDescription(offer))
+                .then((offer) => {
+                    console.log("SDP Offer created:", offer);
+                    return pc.setLocalDescription(offer);
+                })
                 .then(() => {
+                    console.log("Sending SDP Offer to signaling server.");
                     socket.emit('signal', { roomId, userId, offer: pc.localDescription });
                 });
         }
+        
     };
 
     const addSignalMessageToChat = (data) => {
