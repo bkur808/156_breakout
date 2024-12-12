@@ -173,13 +173,13 @@ body:not(.dark-mode) {
   justify-content: center;
   align-items: center;
 }
-
+/*
 .chat-box {
   width: 35%;
   height: 100%;
   border: 2px solid #ccc;
   border-radius: 10px;
-  /* Inherit background and text color from body */
+  
   background-color: inherit; 
   color: inherit; 
   display: flex;
@@ -189,9 +189,9 @@ body:not(.dark-mode) {
 
 .chat-box h2 {
   text-align: center;
-  /* Adjust background and text color based on mode */
-  background-color: #007BFF; /* Light blue in light mode */
-  color: white; /* White text in light mode */
+  
+  background-color: #007BFF; 
+  color: white; 
   padding: 10px;
   margin: 0;
   border-top-left-radius: 8px;
@@ -202,8 +202,7 @@ body:not(.dark-mode) {
   flex: 1;
   padding: 10px;
   overflow-y: auto;
-  /* Adjust background color based on mode */
-  background-color: #f9f9f9; /* Light gray in light mode */
+  background-color: #f9f9f9;
 }
 
 
@@ -249,6 +248,81 @@ body:not(.dark-mode) {
 .chat-input button:hover {
   background-color: #0056b3;
 }
+*/
+
+.chat-box {
+  width: 35%;
+  height: 100%;
+  border: 2px solid #ccc; /* Light gray border in light mode */
+  border-radius: 10px;
+  background-color: inherit; /* Inherit background color from body */
+  color: inherit; 
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.chat-box h2 {
+  text-align: center;
+  background-color: #007BFF; /* Light blue in light mode */
+  color: white; /* White text in light mode */
+  padding: 10px;
+  margin: 0;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.chat-messages {
+  flex: 1;
+  padding: 10px;
+  overflow-y: auto;
+  background-color: inherit; /* Inherit background color from body */
+}
+
+.chat-message {
+  margin-bottom: 10px;
+  padding: 5px 10px;
+  border-radius: 5px;
+}
+
+.chat-message.sent {
+  background-color: rgba(220, 248, 198, 0.8); /* Light green with some transparency */
+  align-self: flex-end;
+  text-align: right;
+}
+
+.chat-message.received {
+  background-color: rgba(241, 240, 240, 0.8); /* Light gray with some transparency */
+  text-align: left;
+}
+
+.chat-input {
+  display: flex;
+  border-top: 1px solid #ccc;
+}
+
+.chat-input input {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  border-bottom-left-radius: 8px;
+  outline: none;
+  background-color: inherit; /* Inherit background color from body */
+  color: inherit; 
+}
+
+.chat-input button {
+  padding: 10px 20px;
+  border: none;
+  background-color: #007BFF; /* Light blue in light mode */
+  color: white; /* White text in light mode */
+  cursor: pointer;
+  border-bottom-right-radius: 8px;
+}
+
+.chat-input button:hover {
+  background-color: #0056b3;
+}
 
 /* Participant Grid */
 .seat-grid {
@@ -270,12 +344,12 @@ body:not(.dark-mode) {
   height: 100%;
   border: 2px solid black;
   border-radius: 10px;
-  background-color: white;
+  background-color: inherit;
   box-sizing: border-box;
 }
 
 .seat-box:hover {
-  background-color: #f0f0f0;
+  background-color: rgba(0, 0, 0, 0.05); /* Subtle hover effect in both modes */
 }
 
 .video-feed {
