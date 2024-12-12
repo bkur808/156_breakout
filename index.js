@@ -187,6 +187,21 @@ io.on('connection', (socket) => {
             io.to(roomId).emit('signal-message', { sender: socket.id, text: message });
         }
     });
+
+    socket.on('signal', ({ roomId, userId, offer, answer, candidate }) => {
+        console.log("Signal received:", { roomId, userId, offer, answer, candidate });
+    
+        // Relay the signal to the target user
+        io.to(userId).emit('signal', {
+            userId: socket.id, // Sender's ID
+            offer,
+            answer,
+            candidate,
+        });
+    
+        console.log(`Relayed signal to ${userId}`);
+    });
+    
 });
 
 app.use(express.static(path.join(__dirname, 'frontend/build')));
