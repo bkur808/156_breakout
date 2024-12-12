@@ -189,6 +189,8 @@ io.on('connection', (socket) => {
     });
 
     socket.on('signal', async ({ roomId, offer, answer, candidate }) => {
+        console.log("Signal received:", { roomId, offer, answer, candidate });
+    
         const roomKey = `room:${roomId}`;
         const roomData = await redis.get(roomKey);
     
@@ -197,25 +199,37 @@ io.on('connection', (socket) => {
             return;
         }
     
-        const { instructorId, participants } = JSON.parse(roomData);
+        const parsedRoom = JSON.parse(roomData);
+        const instructorId = parsedRoom.instructorId;
     
-        // Decide target user (instructor or other participants)
-        const targetUserId = socket.id === instructorId
-            ? participants.find((p) => p) // If sender is instructor, send to the first participant
-            : instructorId; // Otherwise, send to the instructor
+        // Determine the recipient: Instructor or other participants
+        let targetUserId = socket.id === instructorId ? parsedRoom.participants : instructorId;
     
-        if (targetUserId) {
-            console.log(`Relaying signal to ${targetUserId}`);
-            io.to(targetUserId).emit('signal', { 
-                userId: socket.id, // Who sent the signal
-                offer,
-                answer,
-                candidate
+        if (Array.isArray(targetUserId)) {
+            // If participants exist, relay to all participants (excluding sender)
+            targetUserId.forEach((participantId) => {
+                if (participantId && participantId !== socket.id) {
+                    console.log(`Relaying signal to participant ${participantId}`);
+                    io.to(participantId).emit('signal', {
+                        userId: socket.id, // Sender ID
+                        offer,
+                        answer,
+                        candidate,
+                    });
+                }
             });
         } else {
-            console.warn("No valid target user to relay the signal.");
+            // Relay signal to the instructor only
+            console.log(`Relaying signal to instructor ${instructorId}`);
+            io.to(instructorId).emit('signal', {
+                userId: socket.id, // Sender ID
+                offer,
+                answer,
+                candidate,
+            });
         }
-    });    
+    });
+    
     
 });
 

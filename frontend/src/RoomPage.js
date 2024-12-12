@@ -223,10 +223,7 @@ function RoomPage() {
                 })
                 .then(() => {
                     console.log("Sending SDP Offer to signaling server...");
-                    socket.emit('signal', { 
-                        roomId, 
-                        offer: pc.localDescription // Send only the roomId and offer
-                    });
+                    socket.emit('signal', { roomId, offer: pc.localDescription }); // Only send roomId and offer
                 });
         }
         
