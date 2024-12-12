@@ -80,17 +80,17 @@ function RoomPage() {
     const handleInstructorConnected = () => {
         console.log('Instructor connected');
         mainVideoStream.current = localStreamRef.current;
-    };
-
-    const shareInstructorStream = () => {
-        Object.keys(peerConnections.current).forEach((userId) => {
-            const pc = peerConnections.current[userId];
-            if (localStreamRef.current) {
-                localStreamRef.current.getTracks().forEach((track) => {
-                    pc.addTrack(track, localStreamRef.current);
-                });
-            }
-        });
+    
+        // Create a self peer connection for the instructor
+        createPeerConnection(socket.id, false);
+    
+        // Add instructor's local stream to the self connection
+        const pc = peerConnections.current[socket.id];
+        if (pc && localStreamRef.current) {
+            localStreamRef.current.getTracks().forEach((track) => {
+                pc.addTrack(track, localStreamRef.current);
+            });
+        }
     };
 
     const handleUserConnected = (userId, stream = null) => {
@@ -101,7 +101,6 @@ function RoomPage() {
             const pc = peerConnections.current[userId];
             stream.getTracks().forEach((track) => pc.addTrack(track, stream));
         }
-        shareInstructorStream();
 
         addSignalMessageToChat({ sender: "System", text: `User ${userId} connected.` });
     };
