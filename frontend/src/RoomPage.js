@@ -141,15 +141,17 @@ function RoomPage() {
 
     const handleSignal = ({ userId, offer, answer, candidate }) => {
         console.log(`Signal received from ${userId}:`, { offer, answer, candidate });
-        
+    
+        // Check if a peer connection already exists
         let pc = peerConnections.current[userId];
         if (!pc) {
             console.warn(`No peer connection found for ${userId}. Creating one...`);
             pc = createPeerConnection(userId, false); // Ensure connection exists
         }
     
+        // Handle Offer
         if (offer) {
-            console.log(`Received SDP Offer from ${userId}:`, offer);
+            console.log(`Received SDP Offer from ${userId}. Setting remote description...`);
             pc.setRemoteDescription(new RTCSessionDescription(offer))
                 .then(() => {
                     console.log("Remote description set. Creating SDP Answer...");
@@ -161,28 +163,37 @@ function RoomPage() {
                 })
                 .then(() => {
                     console.log("Sending SDP Answer back to signaling server...");
+                    // Send answer back to the backend to relay it to the participant
                     socket.emit('signal', { roomId, userId, answer: pc.localDescription });
                 })
                 .catch((err) => {
-                    console.error("Error handling SDP offer:", err);
+                    console.error("Error handling SDP Offer:", err);
                 });
-        } else if (answer) {
-            console.log(`Received SDP Answer from ${userId}:`, answer);
+        }
+        // Handle Answer
+        else if (answer) {
+            console.log(`Received SDP Answer from ${userId}. Setting remote description...`);
             pc.setRemoteDescription(new RTCSessionDescription(answer))
+                .then(() => {
+                    console.log("Remote description set with Answer.");
+                })
                 .catch((err) => {
                     console.error("Error setting SDP Answer:", err);
                 });
-        } else if (candidate) {
-            console.log(`Received ICE Candidate from ${userId}:`, candidate);
+        }
+        // Handle ICE Candidate
+        else if (candidate) {
+            console.log(`Received ICE Candidate from ${userId}. Adding to PeerConnection...`);
             pc.addIceCandidate(new RTCIceCandidate(candidate))
+                .then(() => {
+                    console.log("ICE Candidate added successfully.");
+                })
                 .catch((err) => {
                     console.error("Error adding ICE Candidate:", err);
                 });
         }
     };
     
-    
-
     const createPeerConnection = (userId, createOffer) => {
         if (peerConnections.current[userId]) return;
 

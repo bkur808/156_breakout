@@ -189,46 +189,43 @@ io.on('connection', (socket) => {
     });
 
     socket.on('signal', async ({ roomId, offer, answer, candidate }) => {
-        console.log("Signal received:", { roomId, offer, answer, candidate });
-    
         const roomKey = `room:${roomId}`;
         const roomData = await redis.get(roomKey);
     
         if (!roomData) {
-            console.error(`Room ${roomId} not found.`);
+            console.error("Room does not exist:", roomId);
             return;
         }
     
         const parsedRoom = JSON.parse(roomData);
         const instructorId = parsedRoom.instructorId;
     
-        // Determine the recipient: Instructor or other participants
-        let targetUserId = socket.id === instructorId ? parsedRoom.participants : instructorId;
-    
-        if (Array.isArray(targetUserId)) {
-            // If participants exist, relay to all participants (excluding sender)
-            targetUserId.forEach((participantId) => {
-                if (participantId && participantId !== socket.id) {
-                    console.log(`Relaying signal to participant ${participantId}`);
-                    io.to(participantId).emit('signal', {
-                        userId: socket.id, // Sender ID
-                        offer,
-                        answer,
-                        candidate,
-                    });
-                }
+        // Relay Offer to the Instructor
+        if (offer) {
+            console.log(`Relaying offer to instructor ${instructorId}`);
+            io.to(instructorId).emit('signal', { 
+                userId: socket.id, // Participant ID (who sent the offer)
+                offer 
             });
-        } else {
-            // Relay signal to the instructor only
-            console.log(`Relaying signal to instructor ${instructorId}`);
-            io.to(instructorId).emit('signal', {
-                userId: socket.id, // Sender ID
-                offer,
-                answer,
-                candidate,
+        } 
+        // Relay Answer back to the Participant
+        else if (answer) {
+            console.log(`Relaying answer back to participant ${socket.id}`);
+            io.to(socket.id).emit('signal', { 
+                userId: instructorId, // Instructor ID (who answered)
+                answer 
+            });
+        } 
+        // Handle ICE Candidates
+        else if (candidate) {
+            console.log(`Relaying candidate to ${socket.id}`);
+            io.to(instructorId).emit('signal', { 
+                userId: socket.id, 
+                candidate 
             });
         }
     });
+    
     
     
 });
