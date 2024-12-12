@@ -141,7 +141,7 @@ function RoomPage() {
 
     const handleSignal = ({ userId, offer, answer, candidate }) => {
         console.log(`Signal received from ${userId}:`, { offer, answer, candidate });
-    
+        
         let pc = peerConnections.current[userId];
         if (!pc) {
             console.warn(`No peer connection found for ${userId}. Creating one...`);
@@ -160,7 +160,7 @@ function RoomPage() {
                     return pc.setLocalDescription(answer);
                 })
                 .then(() => {
-                    console.log("Sending SDP Answer back to signaling server.");
+                    console.log("Sending SDP Answer back to signaling server...");
                     socket.emit('signal', { roomId, userId, answer: pc.localDescription });
                 })
                 .catch((err) => {
@@ -180,6 +180,7 @@ function RoomPage() {
                 });
         }
     };
+    
     
 
     const createPeerConnection = (userId, createOffer) => {
